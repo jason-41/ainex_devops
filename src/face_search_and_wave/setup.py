@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'ainex_motion'
+package_name = 'face_search_and_wave'
 
 setup(
     name=package_name,
@@ -13,16 +13,18 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='swl',
-    maintainer_email='wenlan.shen@tum.de',
+    maintainer='jason',
+    maintainer_email='caojia41.cao@tum.de',
     description='TODO: Package description',
     license='TODO: License declaration',
-    tests_require=['pytest'],
+    extras_require={
+        'test': [
+            'pytest',
+        ],
+    },
     entry_points={
         'console_scripts': [
-            'joint_controller = ainex_motion.joint_controller:main',
-            # TODO: add the executables here
-            'joint_visualization = ainex_motion.joint_visualization_node:main',
+            'face_and_wave = face_search_and_wave.face_and_wave:main',
         ],
     },
 )

@@ -88,51 +88,61 @@ from rclpy.node import Node
 import math
 import time
 
-from servo_service.msg import *
+from servo_service.msg import *  # *表示导入该包下所有消息类型
 from servo_service.srv import *
+
 
 class JointController:
 
-    def __init__(self, node : Node):
+    def __init__(self, node: Node):
         self.node = node
         self.cb_group = rclpy.callback_groups.ReentrantCallbackGroup()
 
         # Publishers for sending joint commands
         # Message format for SetServoPositions: uint8[] ids, float32[] positions, float32 duration
-        self.publisher_set = node.create_publisher(SetServoPositions, 'Set_Joint', 10)
+        self.publisher_set = node.create_publisher(
+            SetServoPositions, 'Set_Joint', 10)
         # Message format for ChangeServoPositions: uint8[] ids, float32[] positions, float32 duration
-        self.publisher_change = node.create_publisher(ChangeServoPositions, 'Change_Joint', 10)
+        self.publisher_change = node.create_publisher(
+            ChangeServoPositions, 'Change_Joint', 10)
         # Message format for SetJointLock: uint8[] ids, uint8[] lock
-        self.publisher_lock = node.create_publisher(SetJointLock, 'Lock_Joint', 10)
+        self.publisher_lock = node.create_publisher(
+            SetJointLock, 'Lock_Joint', 10)
         # Message format for SetPosture: string posture_name float32 duration
-        self.publisher_posture = node.create_publisher(SetPosture, 'Set_Posture', 10)
+        self.publisher_posture = node.create_publisher(
+            SetPosture, 'Set_Posture', 10)
 
         # Clients for various joint services
         # GetServoPositions service: expected response has uint8[] ids, float32[] positions
-        self.cli0 = node.create_client(JointPosition, 'Get_Joint', callback_group=self.cb_group)
+        self.cli0 = node.create_client(
+            JointPosition, 'Get_Joint', callback_group=self.cb_group)
         while not self.cli0.wait_for_service(timeout_sec=1.0):
             self.node.get_logger().info('Service not available, waiting again...')
         self.req0 = JointPosition.Request()
-        
 
         # JointRange service: expected response has float32[] angle_min, float32[] angle_max, uint8[] ids
-        self.cli1 = node.create_client(JointRange, 'Joint_Range', callback_group=self.cb_group)
+        self.cli1 = node.create_client(
+            JointRange, 'Joint_Range', callback_group=self.cb_group)
         self.req1 = JointRange.Request()
 
         # JointLock service: expected response has uint8[] lock, uint8[] ids
-        self.cli2 = node.create_client(JointLock, 'Joint_Lock', callback_group=self.cb_group)
+        self.cli2 = node.create_client(
+            JointLock, 'Joint_Lock', callback_group=self.cb_group)
         self.req2 = JointLock.Request()
 
         # ServoDeviation service: expected response has int16[] deviation, uint8[] ids
-        self.cli3 = node.create_client(ServoDeviation, 'Servo_Deviation', callback_group=self.cb_group)
+        self.cli3 = node.create_client(
+            ServoDeviation, 'Servo_Deviation', callback_group=self.cb_group)
         self.req3 = ServoDeviation.Request()
 
         # ServoTemp service: expected response has int8[] temperature, uint8[] ids
-        self.cli4 = node.create_client(ServoTemp, 'Servo_Temperature', callback_group=self.cb_group)
+        self.cli4 = node.create_client(
+            ServoTemp, 'Servo_Temperature', callback_group=self.cb_group)
         self.req4 = ServoTemp.Request()
 
         # ServoVoltage service: expected response has int32[] vin
-        self.cli5 = node.create_client(ServoVoltage, 'Servo_Voltage', callback_group=self.cb_group)
+        self.cli5 = node.create_client(
+            ServoVoltage, 'Servo_Voltage', callback_group=self.cb_group)
         self.req5 = ServoVoltage.Request()
 
         # Mapping from joint names to joint IDs (uint8 values)
@@ -186,10 +196,11 @@ class JointController:
                     return None
                 joint_ids.append(item)
             else:
-                self.node.get_logger().error(f"Invalid joint identifier: {item}")
+                self.node.get_logger().error(
+                    f"Invalid joint identifier: {item}")
                 return None
         return joint_ids
-    
+
     def setPosture(self, posture_name: str, duration=1):
         """
         Publish a message to set the posture of the robot.
@@ -203,7 +214,8 @@ class JointController:
         # Check if the posture name is valid
         valid_postures = ['stand', 'standzero', 'crouch']
         if posture_name not in valid_postures:
-            self.node.get_logger().error(f"Invalid posture name: {posture_name}. Valid options are: {valid_postures}")
+            self.node.get_logger().error(
+                f"Invalid posture name: {posture_name}. Valid options are: {valid_postures}")
             return
 
         msg.posture_name = posture_name
@@ -211,7 +223,7 @@ class JointController:
 
         self.publisher_posture.publish(msg)
         self.node.get_logger().debug(f"Published SetPosture: {msg}")
-    
+
     def setJointPositions(self, joint_name: list, positions: list, duration=0.5, unit='rad'):
         """
         Publish a message to set joint positions.
@@ -256,7 +268,7 @@ class JointController:
         if unit == 'deg':
             # Convert degrees to radians
             changes = list(map(math.radians, changes))
-            self.node.get_logger().info(f"Joint changes in radians: {changes}")  
+            self.node.get_logger().info(f"Joint changes in radians: {changes}")
         changes = [float(c) for c in changes]
 
         msg = ChangeServoPositions()
@@ -280,7 +292,7 @@ class JointController:
         :param lock: desired lock status (bool)
         """
         msg = SetJointLock()
-        
+
         joint_ids = self.getJointID(joint_name)
         if joint_ids is None:
             return
@@ -291,7 +303,7 @@ class JointController:
         self.publisher_lock.publish(msg)
         self.node.get_logger().debug(f"Published SetJointLock: {msg}")
 
-    def getJointPositions(self, joint_name: list, unit='rad'):      
+    def getJointPositions(self, joint_name: list, unit='rad'):
         """
         Request current joint positions with a service call.
         Request:
@@ -307,13 +319,13 @@ class JointController:
         rclpy.spin_until_future_complete(self.node, future)
         response = future.result()
         if response is None:
-            self.node.get_logger().error(f"Service call to GetServoPositions failed for joints: {joint_name}")
+            self.node.get_logger().error(
+                f"Service call to GetServoPositions failed for joints: {joint_name}")
             return None
         positions = list(response.position)
         if unit == 'deg':
             positions = list(map(math.degrees, positions))
         return positions
-
 
     def getJointRange(self, joint_name: list, unit='rad'):
         """
@@ -334,7 +346,8 @@ class JointController:
         rclpy.spin_until_future_complete(self.node, future)
         response = future.result()
         if response is None:
-            self.node.get_logger().error(f"Service call to JointRange failed for joints: {joint_name}")
+            self.node.get_logger().error(
+                f"Service call to JointRange failed for joints: {joint_name}")
             return None
 
         angle_min = list(response.angle_min)
@@ -361,7 +374,8 @@ class JointController:
         rclpy.spin_until_future_complete(self.node, future)
         response = future.result()
         if response is None:
-            self.node.get_logger().error(f"Service call to JointLock failed for joints: {joint_name}")
+            self.node.get_logger().error(
+                f"Service call to JointLock failed for joints: {joint_name}")
             return None
 
         lock_status = list(response.lock)
@@ -384,7 +398,8 @@ class JointController:
         rclpy.spin_until_future_complete(self.node, future)
         response = future.result()
         if response is None:
-            self.node.get_logger().error(f"Service call to ServoDeviation failed for joints: {joint_name}")
+            self.node.get_logger().error(
+                f"Service call to ServoDeviation failed for joints: {joint_name}")
             return None
 
         deviation = list(response.deviation)
@@ -407,7 +422,8 @@ class JointController:
         rclpy.spin_until_future_complete(self.node, future)
         response = future.result()
         if response is None:
-            self.node.get_logger().error(f"Service call to ServoTemp failed for joints: {joint_name}")
+            self.node.get_logger().error(
+                f"Service call to ServoTemp failed for joints: {joint_name}")
             return None
 
         temperature = list(response.temperature)
@@ -429,11 +445,13 @@ class JointController:
         rclpy.spin_until_future_complete(self.node, future)
         response = future.result()
         if response is None:
-            self.node.get_logger().error(f"Service call to ServoVoltage failed for joints: {joint_name}")
+            self.node.get_logger().error(
+                f"Service call to ServoVoltage failed for joints: {joint_name}")
             return None
 
         voltage = list(response.vin)
         return voltage
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -463,7 +481,6 @@ def main(args=None):
     time.sleep(2)
     joint_controller.setPosture('crouch', 0.8)
     time.sleep(2)
-
 
     ''' Joint Controller - Get Joint Position demo '''
     joint_names = list(joint_controller.joint_id.keys())
@@ -500,12 +517,12 @@ def main(args=None):
     node.get_logger().info(f"Joint Voltage: {voltage}")
 
     '''Joint Controller - Get Joint ID demo'''
-    joint_names = ['r_knee' , 'l_el_pitch']
+    joint_names = ['r_knee', 'l_el_pitch']
     joint_ids = joint_controller.getJointID(joint_names)
     node.get_logger().info(f"Joint IDs: {joint_ids}")
 
     '''Joint Controller - Set Joint Lock demo'''
-    joint_controller.setJointLock([1 , 2], True)
+    joint_controller.setJointLock([1, 2], True)
     time.sleep(2)
     lock_status = joint_controller.getJointLock(joint_names)
     node.get_logger().info(f"Joint Lock Status: {lock_status}")
@@ -534,16 +551,17 @@ def main(args=None):
     #         node.get_logger().info(f"Setting Position: {set_position}")
     #         ### Note: Reading is SLOW. (better avoid reading in a loop)
     #         # position = joint_controller.getJointPositions(joint_names, unit='deg')
-    #         # node.get_logger().info(f"Received Position: {position}")  
+    #         # node.get_logger().info(f"Received Position: {position}")
     # except KeyboardInterrupt:
     #     node.get_logger().info("Keyboard Interrupt: resetting joint positions and unlocking joints.")
     #     joint_controller.setJointPositions(joint_names, [0] * len(joint_names), 1, unit='deg')
     #     time.sleep(1.5)
     #     joint_controller.setJointLock(joint_names, False)
     #     time.sleep(1.5)
-    
+
     node.destroy_node()
     rclpy.shutdown()
-    
+
+
 if __name__ == '__main__':
     main()
