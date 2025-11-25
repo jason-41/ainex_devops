@@ -25,7 +25,7 @@ class JointStatePublisher(Node):
         # Get joint names
         
         #joint_names = 'all' # 'all' retrieves all joint names
-        joint_names = ['r_sho_pitch', 'r_sho_roll', 'r_el_pitch','r_el_yaw'] #change to your desired joint names if needed
+        joint_names = ['r_sho_pitch', 'r_sho_roll', 'r_el_pitch','r_el_yaw','head_pan', 'head_tilt'] #change to your desired joint names if needed
         # joint_ids = self.joint_controller.getJointID('all')
 
         # Get current joint positions (absolute values)

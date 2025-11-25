@@ -69,7 +69,9 @@ class FaceDetectionNode(Node):
         self.detector = FaceDetector.create_from_options(
             FaceDetectorOptions(
                 base_options=BaseOptions(model_asset_path=model_path),
-                running_mode=VisionRunningMode.IMAGE
+                running_mode=VisionRunningMode.IMAGE,
+                min_detection_confidence=0.9  #every time you change, colcon build again
+                # Lower confidence threshold (default is 0.5)
             )
         )
 
