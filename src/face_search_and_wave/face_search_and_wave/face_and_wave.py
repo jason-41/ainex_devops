@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 
-from face_search_and_wave.msg import FaceDetected  # face_detected topic
+from std_msgs.msg import Bool  # for face_detected topic
 from ainex_motion.joint_controller import JointController  # import JointController
 
 import time
@@ -16,8 +16,8 @@ class FaceSearchAndWaveNode(Node):
 
         # Subscribe to face_detected message
         self.sub = self.create_subscription(
-            Int32,
-            "face_detected",     # 要与你队友一致
+            Bool,
+            "face_detected",     # topic name
             self.face_callback,
             10
         )
@@ -25,7 +25,7 @@ class FaceSearchAndWaveNode(Node):
         self.get_logger().info("FaceSearchAndWaveNode started.")
 
     # --------------------------------------------------------
-    def face_callback(self, msg: Int32):
+    def face_callback(self, msg: Bool):
         if msg.data == 0:
             # no face detected → do nothing (simple version)
             return
@@ -37,7 +37,7 @@ class FaceSearchAndWaveNode(Node):
         self.stop_head()
 
         # 2. Do waving motion
-        self.wave_arm()
+        # self.wave_arm()
 
     # --------------------------------------------------------
     def stop_head(self):

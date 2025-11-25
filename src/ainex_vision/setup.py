@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-          'camera_sub = ainex_vision.camera_sub:main',
+        'camera_sub = ainex_vision.camera_sub:main',
+        'face_detection_node = ainex_vision.face_detection_node:main',
         ],
     },
 )

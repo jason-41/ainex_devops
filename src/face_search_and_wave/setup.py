@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'face_and_wave = face_search_and_wave.face_and_wave:main',
+            'wave_semah = face_search_and_wave.wave_semah:main',
         ],
     },
 )

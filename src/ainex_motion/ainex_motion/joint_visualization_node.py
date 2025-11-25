@@ -23,7 +23,10 @@ class JointStatePublisher(Node):
         # Hint: Check the message definition here: https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/JointState.html
         # Set the joints velocity and effort to 0.0, header.stamp to the current time
         # Get joint names
-        joint_names = self.joint_controller.getJointNames()
+        
+        #joint_names = 'all' # 'all' retrieves all joint names
+        joint_names = ['r_sho_pitch', 'r_sho_roll', 'r_el_pitch','r_el_yaw'] #change to your desired joint names if needed
+        # joint_ids = self.joint_controller.getJointID('all')
 
         # Get current joint positions (absolute values)
         positions = self.joint_controller.getJointPositions(joint_names)
