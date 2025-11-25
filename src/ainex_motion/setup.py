@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'joint_controller = ainex_motion.joint_controller:main',
-            #TODO: add the executables here
+            # TODO: add the executables here
+            'joint_visualization = ainex_motion.joint_visualization_node:main',
         ],
     },
 )
