@@ -18,7 +18,7 @@ colcon build --symlink-install
 ## 1. Terminal:
 ```bash
 # Don't activate GUI
-ros2 launch ainex_description display.launch.py
+ros2 launch ainex_description display.launch.py gui:=false
 ```
 
 ## 2. Terminal
@@ -28,7 +28,7 @@ I set one example, to do one motion
 - And then I give it one example target pose (AiNexModel, line68)
 ![Example Pose](images/example_pose.png)
 ```bash
-ros2 run ainex_controller controller_node
+ros2 run ainex_controller ainex_hands_controller_node
 ```
 
 # Further IDEA:
