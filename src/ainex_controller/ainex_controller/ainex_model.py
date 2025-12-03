@@ -57,7 +57,7 @@ class AiNexModel:
 #####################################################################################
     def update_target(self, target_q):
         self.q = target_q
-        # Just add the command from outside like: AiNexModel.update_target([0.23, -1.0, -0.7, 0.7, 0.23, 1.0, 0.7, 0.7])  
+        # Just add the command from outside(exercise 02) like: AiNexModel.update_target([0.23, -1.0, -0.7, 0.7, 0.23, 1.0, 0.7, 0.7])  
         
     def update_model(self, q, v):
         """Update the model with new joint positions and velocities."""
