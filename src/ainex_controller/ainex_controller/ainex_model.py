@@ -65,17 +65,15 @@ class AiNexModel:
         self.v = v
         # update pinocchio model with new q, v
         # print("ori q:",self.q)
-        target_q_left = [0.23, -1.0, -0.7, 0.7]
-        target_q_right = [0.23, 1.0, 0.7, 0.7]
-        check_i = 0
-        for i in self.left_arm_id:
-            self.q[i] = target_q_left[check_i]
-            check_i += 1
-        check_i = 0
-        for i in self.right_arm_id:
-            self.q[i] = target_q_right[check_i]
-            check_i += 1
-        # print("new q:",self.q)
+        # target_q_left = [0.23, -1.0, -0.7, 0.7]
+        # target_q_right = [0.23, 1.0, 0.7, 0.7]
+        # check_i = 0
+        # for i in self.left_arm_id:
+        #     self.q[i] = target_q_left[check_i]
+        #     check_i += 1
+        # check_i = 0
+        # for i in self.right_arm_id:
+        #     self.q[i] = target_q_right[check_i]
 #####################################################################################
 
         pin.forwardKinematics(self.model, self.data, self.q, self.v)
