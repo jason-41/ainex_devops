@@ -31,6 +31,21 @@ install(
   RENAME camera_sub
 )
 
+install(
+  PROGRAMS
+    ainex_vision/aruco_tf_broadcaster.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME aruco_tf_broadcaster
+)
+
+
+install(
+  PROGRAMS
+    ainex_vision/aruco_detection_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME aruco_detection_node
+)
+
 # 4. 安装 resource（如有）
 install(
   DIRECTORY models

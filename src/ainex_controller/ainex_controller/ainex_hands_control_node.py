@@ -25,7 +25,7 @@ def main():
         # Create AinexRobot instance
         # TODO: set sim=False when interfacing with real robot
         # IMPORTANT !!!: Always test first in simulation to avoid damage to the real robot!!!
-        ainex_robot = AinexRobot(node, robot_model, dt, sim=True)
+        ainex_robot = AinexRobot(node, robot_model, dt, sim=False)
 
         q_init = np.zeros(robot_model.model.nq)
         # Home position defined in urdf/pinocchio model
@@ -48,9 +48,15 @@ def main():
         # TODO: Feel free to change to other target poses for testing
 
         # left hand target pose (relative movement)
-        left_target = pin.SE3.Identity()
-        left_target.translation = np.array([0.0, 0.03, 0.0])  # Move 3 cm forward in Y direction
-        left_hand_controller.set_target_pose(left_target, duration=3.0, type='rel')
+
+        left_current_matrix = robot_model.left_hand_pose()
+        # left_target = pin.SE3.Identity()
+        left_current_se3 = pin.SE3(left_current_matrix[:3, :3], left_current_matrix[:3, 3])
+        # left_target.translation = np.array([0.0, 0, 0.06])  # Move up by 3 cm in Z direction
+
+        left_target = pin.SE3(left_current_se3.rotation, left_current_se3.translation.copy())
+        left_target.translation[2] += 0.06
+        left_hand_controller.set_target_pose(left_target, duration=3.0, type='abs')
 
         # right hand target pose (absolute movement)
         # Get current pose directly from robot model (it's already updated in move_to_initial_position)
@@ -61,7 +67,7 @@ def main():
         
         # Create target as SE3 object
         right_target = pin.SE3(right_current_se3.rotation, right_current_se3.translation.copy())
-        right_target.translation[2] += 0.02  # Move up by 2 cm in Z direction
+        right_target.translation[2] += 0.06  # Move up by 2 cm in Z direction
         right_hand_controller.set_target_pose(right_target, duration=3.0, type='abs')
 
         node.get_logger().info("Starting hand control...")

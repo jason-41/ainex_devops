@@ -9,9 +9,20 @@ colcon build --symlink-install
 ```
 # Env settings
 ```bash
-. my_venv/bin/activate
-. /opt/ros/jazzy/setup.bash
-. install/setup.bash
+## environment setup
+
+python3 -m venv my_venv --system-site-packages --symlinks
+source my_venv/bin/activate
+pip install mediapipe
+
+source my_venv/bin/activate
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+```
+
+## Deactivate the Environment
+```
+deactivate
 ```
 
 # node run:
@@ -28,7 +39,7 @@ I set one example, to do one motion
 - And then I give it one example target pose (AiNexModel, line68)
 ![Example Pose](images/example_pose.png)
 ```bash
-ros2 run ainex_controller ainex_hands_controller_node
+ros2 run ainex_controller ainex_hands_control_node
 ```
 
 # Further IDEA:

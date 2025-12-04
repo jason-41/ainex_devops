@@ -1,5 +1,4 @@
 from setuptools import find_packages, setup
-
 package_name = 'ainex_vision'
 
 setup(
@@ -22,6 +21,8 @@ setup(
         'console_scripts': [
         'camera_sub = ainex_vision.camera_sub:main',
         'face_detection_node = ainex_vision.face_detection_node:main',
+        'aruco_tf_broadcaster = ainex_vision.aruco_tf_broadcaster:main',
+        'aruco_detection_node = ainex_vision.aruco_detection_node:main',
         ],
     },
 )
