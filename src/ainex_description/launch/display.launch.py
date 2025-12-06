@@ -9,7 +9,7 @@ from launch.substitutions import LaunchConfiguration, PythonExpression
 def generate_launch_description():
     # Arguments
     gui = LaunchConfiguration('gui')
-    source_list = LaunchConfiguration('source_list')
+    source_list = LaunchConfiguration('list')
 
     # Find package paths
     ainex_description = FindPackageShare('ainex_description')
@@ -68,7 +68,7 @@ def generate_launch_description():
     
     return LaunchDescription([
         DeclareLaunchArgument('gui', default_value='false', description='Start joint_state_publisher_gui if true'),
-        DeclareLaunchArgument('source_list', default_value="['ainex_joint_states']", description='source_list for joint_state_publisher'),
+        DeclareLaunchArgument('list', default_value="['ainex_joint_states']", description='source_list for joint_state_publisher'),
         joint_state_publisher_gui,
         joint_state_publisher,
         robot_state_publisher,

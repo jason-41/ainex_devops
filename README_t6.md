@@ -41,6 +41,19 @@ I set one example, to do one motion
 ```bash
 ros2 run ainex_controller ainex_hands_control_node
 ```
+For Exercise 2 only:
+```bash
+ros2 run ainex_controller ainex_hands_control_node --ros-args -p mode:=2
+```
+
 
 # Further IDEA:
 The updated target should propagate to the AiNexModel class, although it may still be triggered via ainex_hand → ainex_hands. We will probably need to compute the inverse kinematics using end-effector target points. According to the instructor’s guidance, we should use the detector to determine a reachable point and then pair it with a specified uncertainty radius to define the final end-effector target pose.
+
+
+# Coorections:
+An observed behavior ( only one time, ) is that right hand moves backward instead of forward
+The issue might be due to coordinate frame orientations in case it was tested before the corrections
+to the coordinate frame orientations. 
+If not then maybe this ainex_robot.py should be readjusted from -1 to 1
+iq_real[self.robot_model.get_joint_id('r_sho_pitch')] *= -1.0
