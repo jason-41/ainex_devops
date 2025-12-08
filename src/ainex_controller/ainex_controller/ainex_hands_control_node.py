@@ -25,21 +25,24 @@ def run_exercise_1(node, robot_model, ainex_robot,
 
     # Left hand initial → target
     left_current_matrix = robot_model.left_hand_pose()
-    left_cur = pin.SE3(left_current_matrix[:3, :3],
-                       left_current_matrix[:3, 3])
+    left_cur = pin.SE3(left_current_matrix[:3, :3], #rotation matrix
+                       left_current_matrix[:3, 3]) #translation vector
 
-    left_target = pin.SE3(left_cur.rotation, left_cur.translation.copy())
-    left_target.translation[2] += 0.06
+    left_target = pin.SE3(left_cur.rotation, left_cur.translation)
+    left_target.translation[0] += 0.06
+    left_target.translation[1] -= 0.08
+    left_target.translation[2] -= 0.06
     left_hand_controller.set_target_pose(left_target, duration=3.0, type='abs')
 
     # Right hand initial → target
-    right_current_matrix = robot_model.right_hand_pose()
-    right_cur = pin.SE3(right_current_matrix[:3, :3],
-                        right_current_matrix[:3, 3])
+    # right_current_matrix = robot_model.right_hand_pose()
+    # right_cur = pin.SE3(right_current_matrix[:3, :3],
+    #                     right_current_matrix[:3, 3])
 
-    right_target = pin.SE3(right_cur.rotation, right_cur.translation.copy())
-    right_target.translation[2] += 0.06
-    right_hand_controller.set_target_pose(right_target, duration=3.0, type='abs')
+    right_target = pin.SE3.Identity()
+    # right_target = pin.SE3(right_cur.rotation, right_cur.translation)
+    right_target.translation = np.array([0.06, -0.08, 0.06])
+    right_hand_controller.set_target_pose(right_target, duration=3.0, type='rel')
 
     node.get_logger().info("Both hands moving upward 6cm…")
 

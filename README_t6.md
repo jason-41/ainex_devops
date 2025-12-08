@@ -38,6 +38,7 @@ I set one example, to do one motion
 ![Initial Pose](images/initial_pose.png)
 - And then I give it one example target pose (AiNexModel, line68)
 ![Example Pose](images/example_pose.png)
+
 For Excercise 1 only:
 ```bash
 ros2 run ainex_controller ainex_hands_control_node --ros-args -p mode:=1 -p sim:=True
