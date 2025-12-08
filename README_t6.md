@@ -38,12 +38,16 @@ I set one example, to do one motion
 ![Initial Pose](images/initial_pose.png)
 - And then I give it one example target pose (AiNexModel, line68)
 ![Example Pose](images/example_pose.png)
+For Excercise 1 only:
 ```bash
-ros2 run ainex_controller ainex_hands_control_node
+ros2 run ainex_controller ainex_hands_control_node --ros-args -p mode:=1 -p sim:=True
+or:
+ros2 run ainex_controller ainex_hands_control_node --ros-args -p mode:=1 -p sim:=False
 ```
 For Exercise 2 only:
 ```bash
-ros2 run ainex_controller ainex_hands_control_node --ros-args -p mode:=2
+ros2 run ainex_vision aruco_detection_node
+ros2 run ainex_controller ainex_hands_control_node --ros-args -p mode:=2 -p sim:=True
 ```
 
 

@@ -176,6 +176,9 @@ def main():
     node.declare_parameter("mode", 1)
     mode = int(node.get_parameter("mode").value)
 
+    node.declare_parameter("sim", True)
+    sim = bool(node.get_parameter("sim").value)
+
     dt = 0.05
 
     try:
@@ -183,7 +186,7 @@ def main():
         urdf_path = pkg + "/urdf/ainex.urdf"
 
         robot_model = AiNexModel(node, urdf_path)
-        ainex_robot = AinexRobot(node, robot_model, dt, sim=False)
+        ainex_robot = AinexRobot(node, robot_model, dt, sim = sim)
 
         # Initial posture (same as your working Exercise 1)
         q_init = np.zeros(robot_model.model.nq)
