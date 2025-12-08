@@ -47,6 +47,14 @@ ros2 run ainex_vision aruco_detection_node
 ros2 run ainex_controller ainex_hands_control_node --ros-args -p mode:=2 -p sim:=True
 ```
 
+### if you want to reset the robot to the initial position:
+```bash
+ros2 run ainex_motion joint_controller
+
+ros2 service call /Lock_All_Joints std_srvs/srv/Empty {}
+ros2 service call /Unlock_All_Joints std_srvs/srv/Empty {}
+```
+
 # Corrections:
 An observed behavior ( only one time, ) is that right hand moves backward instead of forward
 The issue might be due to coordinate frame orientations in case it was tested before the corrections
