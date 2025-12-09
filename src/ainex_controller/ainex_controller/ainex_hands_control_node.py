@@ -81,10 +81,17 @@ def run_exercise_2(node, robot_model, ainex_robot,
 
     node.create_subscription(PoseStamped, "/aruco_pose", aruco_callback, 10)
 
+    # --- Store "home" poses for both hands (current pose after q_init) ---
+    left_home_matrix = robot_model.left_hand_pose()
+    right_home_matrix = robot_model.right_hand_pose()
+    left_home_se3 = pin.SE3(left_home_matrix[:3, :3], left_home_matrix[:3, 3])
+    right_home_se3 = pin.SE3(right_home_matrix[:3, :3], right_home_matrix[:3, 3])
+
+    # Track if an arm is currently following the marker
+    left_tracking = False
+    right_tracking = False
+
     # --- Get camera frame in Pinocchio model ---
-    # URDF has "camera_link", not "camera_optical_link".
-    # We treat /aruco_pose as being in camera_optical_link and use
-    # the standard fixed rotation between camera_link and camera_optical_link.
     try:
         cam_frame_id = robot_model.model.getFrameId("camera_link")
     except Exception as e:
@@ -92,7 +99,6 @@ def run_exercise_2(node, robot_model, ainex_robot,
         return
 
     # Standard ROS transform: camera_link -> camera_optical_link
-    # (x-forward,y-left,z-up) -> (x-right,y-down,z-forward)
     R_clink_opt = R.from_euler('xyz', [-np.pi / 2.0, 0.0, -np.pi / 2.0]).as_matrix()
     T_clink_opt = pin.SE3(R_clink_opt, np.zeros(3))
 
@@ -107,6 +113,10 @@ def run_exercise_2(node, robot_model, ainex_robot,
         rclpy.spin_once(node, timeout_sec=0.01)
 
         if aruco_pose_msg["msg"] is None:
+            # No new detection: just keep updating controllers/robot
+            vL = left_hand_controller.update(dt)
+            vR = right_hand_controller.update(dt)
+            ainex_robot.update(vL, vR, dt)
             continue
 
         pose = aruco_pose_msg["msg"].pose
@@ -133,35 +143,60 @@ def run_exercise_2(node, robot_model, ainex_robot,
 
         # base_link -> marker
         T_b_m = T_b_opt * T_opt_m
-
         marker_pos_base = T_b_m.translation
 
-        # Depth correction (necessary due to ArUco detection inaccuracies or camera calibration mistakes)
-        marker_pos_base[0] *= 0.6   # Move marker 3cm closer to robot
+        # Depth correction
+        marker_pos_base[0] *= 0.6
         x_b, y_b, z_b = marker_pos_base
 
         # Build target SE3 in base_link frame
         target = pin.SE3.Identity()
         target.translation = marker_pos_base
 
-        # Decide which arm(s) to use based on marker y in base_link
-        # (y_b > 0 → robot's left side, y_b < 0 → right side)
+        # Decide which arm(s) to use
+        desired_left = False
+        desired_right = False
+        left_target = None
+        right_target = None
+
         if y_b > 0.05:
-            # Use left arm
-            left_hand_controller.set_target_pose(target, duration=0.2, type='abs')
-
+            # marker on robot's left side -> left arm only
+            desired_left = True
+            left_target = target
         elif y_b < -0.05:
-            # Use right arm
-            right_hand_controller.set_target_pose(target, duration=0.2, type='abs')
-
+            # marker on robot's right side -> right arm only
+            desired_right = True
+            right_target = target
         else:
-            # Marker roughly in front: use both arms, slightly shifted in y
+            # marker roughly in front -> both arms, slightly offset
+            desired_left = True
+            desired_right = True
             left_target = pin.SE3(target.rotation,
                                   marker_pos_base + np.array([0.0, +0.08, 0.0]))
             right_target = pin.SE3(target.rotation,
                                    marker_pos_base + np.array([0.0, -0.08, 0.0]))
+
+        # ----- LEFT ARM -----
+        if desired_left:
+            # Track marker with left arm
             left_hand_controller.set_target_pose(left_target, duration=0.2, type='abs')
+            left_tracking = True
+        else:
+            # Marker no longer on left side/front -> send left arm home once
+            if left_tracking:
+                node.get_logger().info("Marker moved away from left side -> left arm going home.")
+                left_hand_controller.set_target_pose(left_home_se3, duration=2.0, type='abs')
+                left_tracking = False
+
+        # ----- RIGHT ARM -----
+        if desired_right:
             right_hand_controller.set_target_pose(right_target, duration=0.2, type='abs')
+            right_tracking = True
+        else:
+            if right_tracking:
+                node.get_logger().info("Marker moved away from right side -> right arm going home.")
+                right_hand_controller.set_target_pose(right_home_se3, duration=2.0, type='abs')
+                right_tracking = False
 
         # Update robot
         vL = left_hand_controller.update(dt)
