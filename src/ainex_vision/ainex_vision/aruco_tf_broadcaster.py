@@ -40,7 +40,7 @@ class ArucoTFBroadcaster(Node):
         t = TransformStamped()
         t.header.stamp = msg.header.stamp
         t.header.frame_id = "camera_optical_link"
-        t.child_frame_id = "aruco_marker"
+        t.child_frame_id = "aruco_raw"
 
         t.transform.translation = msg.pose.position
         t.transform.rotation = msg.pose.orientation
