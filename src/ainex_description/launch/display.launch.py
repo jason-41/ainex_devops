@@ -34,12 +34,20 @@ def generate_launch_description():
         output='screen',
     )
 
+    # joint_state_publisher = Node(
+    #     package='joint_state_publisher',
+    #     executable='joint_state_publisher',
+    #     name='joint_state_publisher',
+    #     condition=UnlessCondition(gui),
+    #     parameters=[{'source_list': ['ainex_joint_states']}]
+    # )
+
     joint_state_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
+        package='joint_state_publisher_gui',    # 改成 GUI 包
+        executable='joint_state_publisher_gui', # 同上
+        name='joint_state_publisher_fake',      # 避免命名冲突，随便起名
         condition=UnlessCondition(gui),
-        parameters=[{'source_list': ['ainex_joint_states']}]
+        parameters=[{'use_gui': False}]         # 等价于非 GUI 模式运行
     )
 
     robot_state_publisher = Node(
