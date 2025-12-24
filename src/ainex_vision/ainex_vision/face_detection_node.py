@@ -38,8 +38,8 @@ class FaceDetectionNode(Node):
         # Subscribe to camera image topic
         # (For Bo's laptop: if others want to reproduce it, change the topic name)
         self.sub = self.create_subscription(
-            CompressedImage,
-            'camera_image/compressed',
+            Image,
+            'image_raw',
             self.image_callback,
             qos
         )
@@ -94,7 +94,7 @@ class FaceDetectionNode(Node):
 
         # Convert ROS Image → OpenCV format
         try:
-            frame = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
             self.get_logger().error(f"cv_bridge conversion failed: {e}")
             return
