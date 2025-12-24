@@ -11,6 +11,7 @@ from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 
 from std_msgs.msg import Bool  # for face_detected topic
+import face_recognition
 
 import mediapipe as mp
 import numpy as np
@@ -21,7 +22,6 @@ import time
 '''
 modified from t4_ex3_face_detection_node.py
 '''
-
 
 class FaceDetectionNode(Node):
     def __init__(self):
@@ -75,6 +75,18 @@ class FaceDetectionNode(Node):
             )
         )
 
+        # ---- load reference face (Bo) ----
+        bo_image_path = os.path.join(package_share, 'models', 'bo.jpg')
+        bo_image = face_recognition.load_image_file(bo_image_path)
+
+        bo_encodings = face_recognition.face_encodings(bo_image)
+        if len(bo_encodings) == 0:
+            raise RuntimeError("No face found in reference image!")
+
+        self.bo_face_encoding = bo_encodings[0]
+        self.get_logger().info("Reference face (Bo) loaded.")
+
+
         self.get_logger().info("FaceDetectionNode: detector created OK")
 
         # Directory for automatic screenshot saving
@@ -87,10 +99,23 @@ class FaceDetectionNode(Node):
 
         self.get_logger().info("[Task 3] FaceDetectionNode started (Wayland headless mode).")
 
+
+        # ---- detection rate control (5 Hz) ----
+        self.last_detect_time = 0.0
+        self.detect_interval = 0.2  # seconds (0.2s = 5 Hz)
+
 # ------------------------------------------------------------------------------
 
     def image_callback(self, msg):
         """Process camera image → detect faces → publish → visualize → save screenshot"""
+        
+  
+        now = time.time()
+        if now - self.last_detect_time < self.detect_interval:
+            return
+        self.last_detect_time = now
+        
+
 
         # Convert ROS Image → OpenCV format
         try:
@@ -101,10 +126,14 @@ class FaceDetectionNode(Node):
 
         h, w, _ = frame.shape
 
+        # resize for faster detection
+        small_frame = cv2.resize(frame, (320, 240))
+        sh, sw, _ = small_frame.shape
+
         # Convert to MediaPipe input format
         mp_image = mp.Image(
             image_format=mp.ImageFormat.SRGB,
-            data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            data=cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
         )
 
         result = self.detector.detect(mp_image)
@@ -119,13 +148,61 @@ class FaceDetectionNode(Node):
         has_face = False  # reset for next frame
 
         if result.detections:
+            self.get_logger().info(f">>> detections count: {len(result.detections)}")
             for det in result.detections:
+                self.get_logger().info(">>> entered detection loop")
                 bbox = det.bounding_box
 
-                x_min = bbox.origin_x / w
-                y_min = bbox.origin_y / h
-                width = bbox.width / w
-                height = bbox.height / h
+                # Face Recognition (Bo vs Stranger) 
+
+                # scale bbox back to original frame
+                scale_x = w / sw
+                scale_y = h / sh
+
+                x1 = max(0, int(bbox.origin_x * scale_x))
+                y1 = max(0, int(bbox.origin_y * scale_y))
+                x2 = min(w, int((bbox.origin_x + bbox.width) * scale_x))
+                y2 = min(h, int((bbox.origin_y + bbox.height) * scale_y))
+
+                face_crop = frame[y1:y2, x1:x2]
+
+                # skip invalid crop
+                if face_crop.size == 0:
+                    continue
+
+                # convert to RGB for face_recognition
+                face_rgb = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
+
+                # encodings = face_recognition.face_encodings(face_rgb)
+                h_fc, w_fc, _ = face_rgb.shape
+                encodings = face_recognition.face_encodings(
+                    face_rgb,
+                    known_face_locations=[(0, w_fc, h_fc, 0)]
+                )
+
+
+
+                if len(encodings) == 0:
+                    self.get_logger().info(f"face_crop size: {face_crop.shape}")
+                    self.get_logger().warning("face_recognition: no face encoding found")
+                    continue
+
+
+                if len(encodings) > 0:
+                    face_encoding = encodings[0]
+                    distance = np.linalg.norm(face_encoding - self.bo_face_encoding)
+                    
+                    # threshold for recognition
+                    if distance < 0.45: 
+                        self.get_logger().info("Hi, Bo, how can I help you?")
+                    else:
+                        self.get_logger().info("Stranger, no access granted!")
+
+                x_min = (bbox.origin_x * scale_x) / w
+                y_min = (bbox.origin_y * scale_y) / h
+                width = (bbox.width * scale_x) / w
+                height = (bbox.height * scale_y) / h
+
                 score = det.categories[0].score
 
                 out_msg.faces.append(FaceBoundingBox(
@@ -136,11 +213,16 @@ class FaceDetectionNode(Node):
                     score=score
                 ))
 
-                # Draw detection bounding box
-                x1 = int(bbox.origin_x)
-                y1 = int(bbox.origin_y)
-                x2 = int(bbox.origin_x + bbox.width)
-                y2 = int(bbox.origin_y + bbox.height)
+                pad = 0.35  
+
+                bw = bbox.width
+                bh = bbox.height
+
+                x1 = max(0, int((bbox.origin_x - pad * bw) * scale_x))
+                y1 = max(0, int((bbox.origin_y - pad * bh) * scale_y))
+                x2 = min(w, int((bbox.origin_x + bw * (1 + pad)) * scale_x))
+                y2 = min(h, int((bbox.origin_y + bh * (1 + pad)) * scale_y))
+
                 cv2.rectangle(output_vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         # Publish detection result message
