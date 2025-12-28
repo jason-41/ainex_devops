@@ -1,0 +1,5 @@
+string session_id
+string user_text
+bool reset
+---
+string assistant_text
