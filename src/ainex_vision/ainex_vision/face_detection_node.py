@@ -12,6 +12,8 @@ from ament_index_python.packages import get_package_share_directory
 
 from std_msgs.msg import Bool  # for face_detected topic
 import face_recognition
+from auth_msgs.msg import AuthState # custom message for authentication state
+
 
 import mediapipe as mp
 import numpy as np
@@ -56,6 +58,14 @@ class FaceDetectionNode(Node):
             "face_detected",
             10
         )
+
+        # Publisher for face authorization state
+        self.auth_pub = self.create_publisher(
+            AuthState,
+            "/auth/face_state",
+            10
+        )
+
 
         # Load MediaPipe FaceDetector
         BaseOptions = mp.tasks.BaseOptions
@@ -104,16 +114,31 @@ class FaceDetectionNode(Node):
         self.last_detect_time = 0.0
         self.detect_interval = 0.2  # seconds (0.2s = 5 Hz)
 
+
+        # ---- authentication state ----
+        self.known_face_counter = 0
+        self.REQUIRED_CONFIRMATIONS = 5
+        self.authenticated = False
+
+
 # ------------------------------------------------------------------------------
 
     def image_callback(self, msg):
         """Process camera image → detect faces → publish → visualize → save screenshot"""
-        
-  
-        now = time.time()
-        if now - self.last_detect_time < self.detect_interval:
+       
+        # If already authenticated, do nothing
+        if self.authenticated:
             return
-        self.last_detect_time = now
+
+        # Face recognition authorization variables
+        authorized = False
+        user_name = "Unknown"
+
+
+        # now = time.time()
+        # if now - self.last_detect_time < self.detect_interval:
+        #     return
+        # self.last_detect_time = now
         
 
 
@@ -194,9 +219,14 @@ class FaceDetectionNode(Node):
                     
                     # threshold for recognition
                     if distance < 0.45: 
-                        self.get_logger().info("Hi, Bo, how can I help you?")
+                        self.known_face_counter += 1
+                        self.get_logger().info(
+                            f"Known face detected ({self.known_face_counter}/"
+                            f"{self.REQUIRED_CONFIRMATIONS})"
+                        )
                     else:
-                        self.get_logger().info("Stranger, no access granted!")
+                        # reset counter if not consistently Bo
+                        self.known_face_counter = 0
 
                 x_min = (bbox.origin_x * scale_x) / w
                 y_min = (bbox.origin_y * scale_y) / h
@@ -225,24 +255,42 @@ class FaceDetectionNode(Node):
 
                 cv2.rectangle(output_vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
+
+        # ---- check authentication threshold ----
+        if self.known_face_counter >= self.REQUIRED_CONFIRMATIONS:
+            self.get_logger().info("Identity confirmed: Bo")
+
+            auth_msg = AuthState()
+            auth_msg.authorized = True
+            auth_msg.user_name = "Bo"
+            self.auth_pub.publish(auth_msg)
+
+            self.authenticated = True
+
+            self.get_logger().info(
+                "Authentication complete. Shutting down face_detection_node."
+            )
+
+            # shutdown node after successful authentication
+            rclpy.shutdown()
+            return
+
         # Publish detection result message
         self.pub.publish(out_msg)
+        #publish authorization state
+        if not self.authenticated:
+            auth_msg = AuthState()
+            auth_msg.authorized = authorized
+            auth_msg.user_name = user_name
+            self.auth_pub.publish(auth_msg)
         result = None  # free memory
 
         # Visualize detection output
         try:
-            cv2.imshow("Face Detection", output_vis)
+            cv2.imshow("Face Recognition", output_vis)
             cv2.waitKey(1)
         except:
             pass
-
-        # Automatically save a screenshot every 1 second
-        # now = time.time()
-        # if now - self.last_save > 1.0:
-        #     self.last_save = now
-        #     save_path = os.path.join(self.save_dir, f"face_{int(now)}.jpg")
-        #     cv2.imwrite(save_path, frame)
-        #     self.get_logger().info(f"[Task 3] Screenshot saved: {save_path}")
 
 
 # -----------------------------------------------------------------------------

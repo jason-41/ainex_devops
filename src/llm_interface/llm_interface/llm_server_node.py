@@ -5,8 +5,9 @@ from rclpy.node import Node
 from llm_msgs.srv import Chat
 from llm_interface.openai_client import OpenAIChatClient
 from pathlib import Path
+from auth_msgs.msg import AuthState
 
-#from openai import OpenAI
+
 #!/home/wbo/hrs_vision_env/bin/python3
 
 class LLMServerNode(Node):
@@ -14,6 +15,21 @@ class LLMServerNode(Node):
         super().__init__("llm_server_node")
         self.srv = self.create_service(Chat, "/llm/chat", self.on_chat)
         self.get_logger().info("LLM Server ready at /llm/chat")
+
+        # ---- authorization state ----
+        self.authorized = False
+        self.authorized_user = "Unknown"
+        self.locked = True
+
+
+        self.create_subscription(
+            AuthState,
+            "/auth/face_state",
+            self.auth_callback,
+            10
+        )
+        self.get_logger().info("Waiting for face authentication...")
+
 
         # memory：session_id -> list[str]
         self.memory = {}
@@ -30,8 +46,33 @@ class LLMServerNode(Node):
         self.get_logger().info("System prompt loaded successfully")
 
 
+    def auth_callback(self, msg: AuthState):
+        # Only update when state changes
+        if self.authorized != msg.authorized:
+            self.authorized = msg.authorized
+            self.authorized_user = msg.user_name
+
+            if self.authorized:
+                self.locked = False
+                self.get_logger().info(
+                    f"LLM unlocked for user: {self.authorized_user}"
+                )
+            else:
+                self.get_logger().info("Authentication lost or not authorized")
+
+
 
     def on_chat(self, req: Chat.Request, res: Chat.Response):
+
+        # ---- authorization gate ----
+        if self.locked:
+            res.assistant_text = (
+                "LLM is locked. Please complete authentication first."
+            )
+            return res
+
+
+
         sid = req.session_id.strip() or "default"
         if req.reset or sid not in self.memory:
             self.memory[sid] = []

@@ -63,6 +63,13 @@ def main():
 
             # ---------- normal chat ----------
             reply = node.call_llm(user_input)
+            #print(f"[DEBUG] raw reply: {repr(reply)}")
+
+            # ---- lock-aware behavior ----
+            if "LLM is locked" in reply or "locked" in reply.lower():
+                print("[LLM CLI]: Waiting for face authentication, no access granted")
+                continue
+
             print(f"LLM: {reply}")
 
     except KeyboardInterrupt:

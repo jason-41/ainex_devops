@@ -24,8 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'speech_to_text = speech_interface.speech_to_text_node:main',
-            'text_to_speech = speech_interface.text_to_speech_node:main',
+            'asr_node = speech_interface.asr_node:main',
+            'tts_node = speech_interface.tts_node:main',
         ],
     },
 )
