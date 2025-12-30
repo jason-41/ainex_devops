@@ -9,12 +9,11 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/llm_interface']),
         ('share/llm_interface', ['package.xml']),
-        ('share/llm_interface/launch', ['launch/llm_with_auth.launch.py']),
     ],
 
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='wbo',
+    maintainer='Bo Wang',
     maintainer_email='wbo1421@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',

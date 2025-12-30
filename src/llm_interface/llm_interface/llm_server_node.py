@@ -91,7 +91,7 @@ class LLMServerNode(Node):
         if self.locked:
             reply = "I am locked. Please complete authentication first."
         else:
-            # 语音统一用 default session
+            # default session name in speech mode
             sid = "speech"
 
             if sid not in self.memory:

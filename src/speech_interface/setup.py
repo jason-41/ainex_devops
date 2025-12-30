@@ -13,7 +13,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='wbo',
+    maintainer='Bo Wang',
     maintainer_email='wbo1421@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
