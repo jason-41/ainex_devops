@@ -1,93 +1,185 @@
 #!/usr/bin/env python3
-import json
-import queue
+import collections
 import numpy as np
 import sounddevice as sd
-from vosk import Model, KaldiRecognizer
+import soundfile as sf
+import tempfile
+import webrtcvad
+import time
+
+from faster_whisper import WhisperModel
 
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from std_msgs.msg import Bool
+
 
 
 class ASRNode(Node):
     """
-    Offline ASR using Vosk.
-    Publishes recognized text to /speech/text_input (std_msgs/String).
+    Real-time ASR using:
+    - WebRTC VAD (speech segmentation)
+    - Whisper (faster-whisper) for transcription
     """
 
     def __init__(self):
         super().__init__('asr_node')
 
-        # Parameters
-        #self.declare_parameter('model_path', '')
-        self.declare_parameter('sample_rate', 16000)
-        #self.declare_parameter('device', None)  # None -> default input device
+        # =========================
+        # Audio / VAD parameters
+        # =========================
+        self.sample_rate = 16000
+        self.device = 9                 # change to your microphone device
+        self.frame_duration_ms = 30     # VAD support 10 / 20 / 30 ms
+        self.silence_timeout_ms = 600   # mute for how long until silence is considered end of sentence
 
-        #model_path = self.get_parameter('model_path').get_parameter_value().string_value
-        model_path = "/home/wbo/humanoid_robotics_system/models/speech_recogntion/vosk-model-small-en-us-0.15"
-        self.sample_rate = int(self.get_parameter('sample_rate').value)
-        #self.device = self.get_parameter('device').value
-        self.device = 9  # you may need to change this to your microphone device ID
+        self.frame_size = int(
+            self.sample_rate * self.frame_duration_ms / 1000
+        )
 
-        # Publisher
-        self.pub = self.create_publisher(String, '/speech/text_input', 10)
+        self.max_silence_frames = int(
+            self.silence_timeout_ms / self.frame_duration_ms
+        )
 
-        # Audio queue
-        self.q = queue.Queue()
+        # =========================
+        # Initialize VAD
+        # =========================
+          
+        # the vad level 0~3, larger the value is more aggressive, 2 is balanced
+        self.vad = webrtcvad.Vad(3)
+        # =========================
+        # Load Whisper
+        # =========================
+        self.get_logger().info("Loading Whisper model (faster-whisper)...")
+        self.whisper = WhisperModel(
+            "base",            # tiny / base / small
+            device="cpu",
+            compute_type="int8"
+        )
+        self.get_logger().info("Whisper loaded.")
 
-        # Load model
-        if not model_path:
-            # 你需要下载一个 Vosk 模型并把路径填进 launch 或参数里
-            # 例如: vosk-model-small-en-us-0.15 / vosk-model-small-cn-0.22
-            raise RuntimeError("model_path is empty. Please set ROS parameter 'model_path' to a Vosk model directory.")
+        # =========================
+        # ROS publisher
+        # =========================
+        self.pub = self.create_publisher(
+            String,
+            '/speech/text_input',
+            10
+        )
 
-        self.get_logger().info(f"Loading Vosk model from: {model_path}")
-        self.model = Model(model_path)
-        self.rec = KaldiRecognizer(self.model, self.sample_rate)
-        self.rec.SetWords(False)
+        # =========================
+        # TTS activity gate (mute ASR while robot is speaking)
+        # =========================
+        self.tts_active = False
+        self.create_subscription(
+            Bool,
+            "/speech/tts_active",
+            self.tts_state_callback,
+            10
+        )
 
+
+        # =========================
+        # Runtime state
+        # =========================
+        self.audio_buffer = []
+        self.silence_counter = 0
+        self.is_speaking = False
+
+        # =========================
         # Start audio stream
-        self.stream = sd.RawInputStream(
+        # =========================
+        self.stream = sd.InputStream(
             samplerate=self.sample_rate,
-            blocksize=8000,
             device=self.device,
-            dtype='int16',
             channels=1,
+            dtype='int16',
+            blocksize=self.frame_size,
             callback=self.audio_callback
         )
         self.stream.start()
 
-        self.get_logger().info("ASR started. Speak into microphone...")
+        self.get_logger().info("Whisper + VAD ASR started. Speak naturally.")
 
-        # Timer to process queue
-        self.timer = self.create_timer(0.05, self.process_audio)
 
-    def audio_callback(self, indata, frames, time, status):
+    def tts_state_callback(self, msg: Bool):
+        if self.tts_active != msg.data:
+            self.tts_active = msg.data
+            if self.tts_active:
+                self.get_logger().info("TTS active -> ASR muted")
+            else:
+                self.get_logger().info("TTS finished -> ASR listening")
+
+
+    def audio_callback(self, indata, frames, time_info, status):
         if status:
-            # 这里不要狂刷日志，否则会卡；只放进队列
-            pass
-        self.q.put(bytes(indata))
+            return
+        
+        # ----- mute ASR while TTS is speaking -----
+        if self.tts_active:
+            self.audio_buffer.clear()
+            self.silence_counter = 0
+            self.is_speaking = False
+            return
 
-    def process_audio(self):
-        """Pull audio chunks and run recognition."""
+        audio_bytes = indata.tobytes()
+        is_speech = self.vad.is_speech(audio_bytes, self.sample_rate)
+
+        if is_speech:
+            self.audio_buffer.append(indata.copy())
+            self.silence_counter = 0
+            self.is_speaking = True
+        else:
+            if self.is_speaking:
+                self.silence_counter += 1
+
+                if self.silence_counter > self.max_silence_frames:
+                    self.is_speaking = False
+                    self.silence_counter = 0
+                    self.process_utterance()
+
+    def process_utterance(self):
+        if not self.audio_buffer:
+            return
+
+        self.get_logger().info("End of utterance detected, transcribing...")
+
+        audio = np.concatenate(self.audio_buffer, axis=0)
+        self.audio_buffer.clear()
+
+        # transform to float32
+        audio = audio.astype(np.float32) / 32768.0
+
+        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+            sf.write(tmp.name, audio, self.sample_rate)
+
+            segments, _ = self.whisper.transcribe(
+                tmp.name,
+                beam_size=5,
+                vad_filter=False,
+                language=None   # auto-detect language
+            )
+
+            text = ""
+            for seg in segments:
+                text += seg.text.strip() + " "
+
+            text = text.strip()
+
+            if text:
+                msg = String()
+                msg.data = text
+                self.pub.publish(msg)
+                self.get_logger().info(f"[Whisper ASR] {text}")
+
+    def destroy_node(self):
         try:
-            while not self.q.empty():
-                data = self.q.get_nowait()
-                if self.rec.AcceptWaveform(data):
-                    result = json.loads(self.rec.Result())
-                    text = (result.get("text") or "").strip()
-                    if text:
-                        msg = String()
-                        msg.data = text
-                        self.pub.publish(msg)
-                        self.get_logger().info(f"[ASR] {text}")
-                else:
-                    # partial = json.loads(self.rec.PartialResult()).get("partial","")
-                    # 需要的话可以 debug partial
-                    pass
-        except Exception as e:
-            self.get_logger().error(f"ASR processing error: {e}")
+            self.stream.stop()
+            self.stream.close()
+        except Exception:
+            pass
+        super().destroy_node()
 
 
 def main():
@@ -98,11 +190,6 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        try:
-            node.stream.stop()
-            node.stream.close()
-        except Exception:
-            pass
         node.destroy_node()
         rclpy.shutdown()
 

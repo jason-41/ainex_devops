@@ -6,6 +6,8 @@ from llm_msgs.srv import Chat
 from llm_interface.openai_client import OpenAIChatClient
 from pathlib import Path
 from auth_msgs.msg import AuthState
+from std_msgs.msg import String
+
 
 
 #!/home/wbo/hrs_vision_env/bin/python3
@@ -45,6 +47,23 @@ class LLMServerNode(Node):
 
         self.get_logger().info("System prompt loaded successfully")
 
+        # ---- speech interface ----
+        self.speech_sub = self.create_subscription(
+            String,
+            "/speech/text_input",
+            self.on_speech_input,
+            10
+        )
+
+        self.speech_pub = self.create_publisher(
+            String,
+            "/speech/text_output",
+            10
+        )
+
+        self.get_logger().info("Speech interface enabled.")
+
+
 
     def auth_callback(self, msg: AuthState):
         # Only update when state changes
@@ -59,6 +78,56 @@ class LLMServerNode(Node):
                 )
             else:
                 self.get_logger().info("Authentication lost or not authorized")
+
+
+    def on_speech_input(self, msg: String):
+        user_text = msg.data.strip()
+        if not user_text:
+            return
+
+        self.get_logger().info(f"[Speech Input] {user_text}")
+
+        # ---- authorization gate ----
+        if self.locked:
+            reply = "I am locked. Please complete authentication first."
+        else:
+            # 语音统一用 default session
+            sid = "speech"
+
+            if sid not in self.memory:
+                self.memory[sid] = []
+
+            messages = []
+
+            messages.append({
+                "role": "system",
+                "content": self.system_prompt
+            })
+
+            for m in self.memory[sid]:
+                messages.append(m)
+
+            messages.append({
+                "role": "user",
+                "content": user_text
+            })
+
+            try:
+                reply = self.client.chat(messages)
+            except Exception as e:
+                self.get_logger().error(f"OpenAI API error: {e}")
+                reply = "Sorry, I encountered an error."
+
+            # write back to memory
+            self.memory[sid].append({"role": "user", "content": user_text})
+            self.memory[sid].append({"role": "assistant", "content": reply})
+
+        # publish to TTS
+        out = String()
+        out.data = reply
+        self.speech_pub.publish(out)
+
+        self.get_logger().info(f"[LLM Reply] {reply}")
 
 
 
