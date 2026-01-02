@@ -1,5 +1,27 @@
 #!/usr/bin/env python3
 
+"""
+File: face_detection_node.py
+
+Purpose:
+This file implements a ROS2 node for real-time face detection and identity-based
+authentication using camera input. The node combines MediaPipe face detection
+with face recognition to identify a known user and publish authentication state
+to the rest of the system.
+
+Detected faces are visualized, bounding boxes are published, and authentication
+is confirmed only after consistent recognition over multiple frames.
+
+Structure:
+- FaceDetectionNode class:
+  - Subscribes to camera images
+  - Detects faces using MediaPipe
+  - Performs face recognition against a reference encoding
+  - Publishes bounding boxes, detection status, and authentication state
+- main function:
+  - Initializes and spins the ROS2 node
+"""
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
@@ -21,12 +43,27 @@ import cv2
 import os
 import time
 
-'''
-modified from t4_ex3_face_detection_node.py
-'''
 
 class FaceDetectionNode(Node):
+    """
+    ROS2 node for face detection and face-based user authentication.
+    """
     def __init__(self):
+        """
+        Initialize the face detection and authentication node.
+
+        Purpose:
+        - Subscribe to the camera image topic
+        - Initialize the MediaPipe face detector
+        - Load a reference face for identity verification
+        - Create publishers for detection and authentication results
+
+        Inputs:
+        - None
+
+        Outputs:
+        - None
+        """
         super().__init__("face_detection_node")
         self.bridge = CvBridge()
 
@@ -52,7 +89,7 @@ class FaceDetectionNode(Node):
             "/mediapipe/face_bbox",
             10
         )
-
+        # Publish a boolean indicating whether a face is detected
         self.face_detected_pub = self.create_publisher(
             Bool,
             "face_detected",
@@ -99,20 +136,7 @@ class FaceDetectionNode(Node):
 
         self.get_logger().info("FaceDetectionNode: detector created OK")
 
-        # Directory for automatic screenshot saving
-        self.save_dir = os.path.join(
-            os.path.dirname(__file__),
-            "face_detection_outputs"
-        )
-        os.makedirs(self.save_dir, exist_ok=True)
-        self.last_save = 0
-
         self.get_logger().info("[Task 3] FaceDetectionNode started (Wayland headless mode).")
-
-
-        # ---- detection rate control (5 Hz) ----
-        self.last_detect_time = 0.0
-        self.detect_interval = 0.2  # seconds (0.2s = 5 Hz)
 
 
         # ---- authentication state ----
@@ -124,7 +148,22 @@ class FaceDetectionNode(Node):
 # ------------------------------------------------------------------------------
 
     def image_callback(self, msg):
-        """Process camera image → detect faces → publish → visualize → save screenshot"""
+        """
+        Process incoming camera images for face detection and authentication.
+
+        Purpose:
+        - Convert ROS image messages to OpenCV format
+        - Detect faces using MediaPipe
+        - Perform face recognition against a reference encoding
+        - Publish bounding boxes and authentication state
+        - Shut down the node after successful authentication
+
+        Inputs:
+        - msg (Image): Incoming camera image message
+
+        Outputs:
+        - None
+        """
        
         # If already authenticated, do nothing
         if self.authenticated:
@@ -135,10 +174,6 @@ class FaceDetectionNode(Node):
         user_name = "Unknown"
 
 
-        # now = time.time()
-        # if now - self.last_detect_time < self.detect_interval:
-        #     return
-        # self.last_detect_time = now
         
 
 
@@ -295,6 +330,20 @@ class FaceDetectionNode(Node):
 
 # -----------------------------------------------------------------------------
 def main(args=None):
+    """
+    Entry point for the face detection and authentication node.
+
+    Purpose:
+    - Initialize ROS2
+    - Create and spin the FaceDetectionNode
+    - Ensure clean shutdown on exit
+
+    Inputs:
+    - args: Optional command-line arguments
+
+    Outputs:
+    - None
+    """
     rclpy.init(args=args)
     node = FaceDetectionNode()
     try:
@@ -308,3 +357,5 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
+
+

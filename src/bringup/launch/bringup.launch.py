@@ -1,12 +1,46 @@
+"""
+File: bringup.launch.py
+
+Purpose:
+This launch file starts all core ROS2 nodes required for the humanoid robot
+human–robot interaction pipeline, including perception, speech, and LLM-based
+dialog components.
+
+The launch configuration enables:
+- Face detection and authentication
+- Automatic speech recognition (ASR)
+- LLM-based dialogue server
+- Text-to-speech (TTS) output
+
+Structure:
+- generate_launch_description function:
+  - Creates and returns a LaunchDescription instance
+  - Defines and launches all required ROS2 nodes
+"""
+
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
+    """
+    Generate the ROS2 launch description for the full interaction system.
+
+    Purpose:
+    - Instantiate and configure all ROS2 nodes needed for the system
+    - Group perception, speech, and LLM components in a single launch file
+
+    Inputs:
+    - None
+
+    Outputs:
+    - LaunchDescription: Launch configuration containing all nodes
+    """
 
     return LaunchDescription([
 
         # =========================
-        # Face recognition / auth
+        # Face recognition / authentication
         # =========================
         Node(
             package='ainex_vision',
@@ -16,7 +50,7 @@ def generate_launch_description():
         ),
 
         # =========================
-        # ASR (Whisper + VAD)
+        # Automatic Speech Recognition (Whisper + VAD)
         # =========================
         Node(
             package='speech_interface',
@@ -26,7 +60,7 @@ def generate_launch_description():
         ),
 
         # =========================
-        # LLM Server
+        # LLM Server Node
         # =========================
         Node(
             package='llm_interface',
@@ -36,7 +70,7 @@ def generate_launch_description():
         ),
 
         # =========================
-        # TTS (Piper)
+        # Text-to-Speech (Piper)
         # =========================
         Node(
             package='speech_interface',
@@ -45,3 +79,4 @@ def generate_launch_description():
             output='screen'
         ),
     ])
+
