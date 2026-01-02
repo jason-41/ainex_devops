@@ -58,10 +58,9 @@ class TTSNode(Node):
         # =========================
 
         # Path to the Piper TTS model file
-        # This path should be adapted to the local system configuration
+        # TODO:This path should be adapted to the local system configuration
         self.model_path = (
-            "/home/wbo/humanoid_robotics_system/models/tts/piper/"
-            "en_US-amy-medium.onnx"
+            "/home/wbo/humanoid_robotics_system/hrs_groupE/src/speech_interface/models/tts/piper/en_US-amy-medium.onnx"
         )
 
         # Audio playback command (Linux)

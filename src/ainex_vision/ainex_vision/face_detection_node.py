@@ -76,6 +76,7 @@ class FaceDetectionNode(Node):
 
         # Subscribe to camera image topic
         # (For Bo's laptop: if others want to reproduce it, change the topic name)
+        # TODO: Adapt the topic name to match your camera setup and adpt to CompressedImage if needed
         self.sub = self.create_subscription(
             Image,
             'image_raw',
@@ -123,6 +124,7 @@ class FaceDetectionNode(Node):
         )
 
         # ---- load reference face (Bo) ----
+        #TODO: Adapt the path to the reference image as needed, or use your own reference image, out of data privacy concerns i don't upload Bo's image
         bo_image_path = os.path.join(package_share, 'models', 'bo.jpg')
         bo_image = face_recognition.load_image_file(bo_image_path)
 

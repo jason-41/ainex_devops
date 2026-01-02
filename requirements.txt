@@ -3,8 +3,8 @@ action-msgs==2.0.3
 action-tutorials-interfaces==0.33.7
 action-tutorials-py==0.33.7
 actionlib-msgs==5.3.6
--e git+ssh://git@github.com/Nivilian/groupE_final.git@8d51dd00056e5fa15a69f038327f8bcca7757f2a#egg=ainex_controller&subdirectory=build/ainex_controller
--e git+ssh://git@github.com/Nivilian/groupE_final.git@8d51dd00056e5fa15a69f038327f8bcca7757f2a#egg=ainex_motion&subdirectory=build/ainex_motion
+-e git+ssh://git@github.com/Nivilian/groupE_final.git@7e3569f4594c9319e41f8af41a6fc515b748328b#egg=ainex_controller&subdirectory=build/ainex_controller
+-e git+ssh://git@github.com/Nivilian/groupE_final.git@7e3569f4594c9319e41f8af41a6fc515b748328b#egg=ainex_motion&subdirectory=build/ainex_motion
 ainex-vision==0.0.0
 ament-cmake-test==2.5.4
 ament-copyright==0.17.3
@@ -32,6 +32,7 @@ beautifulsoup4==4.12.3
 blinker==1.7.0
 bloom==0.13.0
 breezy==3.3.5
+-e git+ssh://git@github.com/Nivilian/groupE_final.git@7e3569f4594c9319e41f8af41a6fc515b748328b#egg=bringup&subdirectory=build/bringup
 Brlapi==0.8.5
 Brotli==1.1.0
 builtin-interfaces==2.0.3
@@ -110,7 +111,7 @@ examples-rclpy-minimal-service==0.19.6
 examples-rclpy-minimal-subscriber==0.19.6
 face-recognition==1.3.0
 face-recognition-models==0.3.0
--e git+ssh://git@github.com/Nivilian/groupE_final.git@8d51dd00056e5fa15a69f038327f8bcca7757f2a#egg=face_search_and_wave&subdirectory=build/face_search_and_wave
+-e git+ssh://git@github.com/Nivilian/groupE_final.git@7e3569f4594c9319e41f8af41a6fc515b748328b#egg=face_search_and_wave&subdirectory=build/face_search_and_wave
 fastbencode==0.2
 faster-whisper==1.2.1
 fastimport==0.9.14
@@ -163,7 +164,7 @@ launchpadlib==1.11.0
 lazr.restfulclient==0.14.6
 lazr.uri==1.0.6
 lifecycle-msgs==2.0.3
--e git+ssh://git@github.com/Nivilian/groupE_final.git@8d51dd00056e5fa15a69f038327f8bcca7757f2a#egg=llm_interface&subdirectory=build/llm_interface
+-e git+ssh://git@github.com/Nivilian/groupE_final.git@7e3569f4594c9319e41f8af41a6fc515b748328b#egg=llm_interface&subdirectory=build/llm_interface
 llm-msgs==0.0.0
 logging-demo==0.33.7
 louis==3.29.0
@@ -337,7 +338,7 @@ snowballstemmer==2.2.0
 sounddevice==0.5.3
 soundfile==0.13.1
 soupsieve==2.5
--e git+ssh://git@github.com/Nivilian/groupE_final.git@8d51dd00056e5fa15a69f038327f8bcca7757f2a#egg=speech_interface&subdirectory=build/speech_interface
+-e git+ssh://git@github.com/Nivilian/groupE_final.git@7e3569f4594c9319e41f8af41a6fc515b748328b#egg=speech_interface&subdirectory=build/speech_interface
 sros2==0.13.4
 srt==3.5.3
 statistics-msgs==2.0.3
