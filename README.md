@@ -1,4 +1,23 @@
 # how to run it:
+## Structure
+```bash
+workspace/
+└── src/
+    └── llm/                    # Metapackage/Main package
+        ├── CMakeLists.txt      # Main package's CMakeLists
+        ├── package.xml         # Main package's package.xml
+        ├── src/                # Main package's source code
+        │   └── ...             # Main package's functions/code
+        ├── speech_interface/   # Sub-package 1
+        │   ├── setup.py
+        │   └── package.xml
+        ├── servo_service/      # Sub-package 2
+        │   ├── CMakeLists.txt
+        │   └── package.xml
+        └── llm_msgs/           # Sub-package 3
+            ├── CMakeLists.txt
+            └── package.xml
+```
 
 ## Env settings
 
