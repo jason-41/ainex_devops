@@ -4,21 +4,22 @@
 
 
 
-	python3 -m venv my_venv --system-site-packages --symlinks
-	source my_venv/bin/activate
+	python3 -m venv groupE_venv --system-site-packages --symlinks
+	source groupE_venv/bin/activate
 
 	pip install mediapipe
 	pip install piper-tts
-	pip install faster-whisper sounddevice soundfile numpy
+	pip install faster-whisper sounddevice 
+	soundfile numpy
 	pip install webrtcvad
 
-	source my_venv/bin/activate
+	source groupE_venv/bin/activate
 	source /opt/ros/jazzy/setup.bash
 	colcon build --symlink-install
 	source install/setup.bash
 
 
-	export PYTHONPATH=/my_venv/lib/python3.12/site-packages:$PYTHONPATH
+	export PYTHONPATH=/groupE_venv/lib/python3.12/site-packages:$PYTHONPATH
 
 
 ## Launch the nodes
