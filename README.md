@@ -1,5 +1,5 @@
 # how to run it:
-## Structure
+## Structure Guidance
 ```bash
 workspace/
 └── src/
