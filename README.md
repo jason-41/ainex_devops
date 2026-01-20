@@ -36,6 +36,8 @@ workspace/
 	pip install face_recognition
 	soundfile numpy
 	pip install webrtcvad
+    pip uninstall numpy 
+    pip install "numpy<2"
 
 	source groupE_venv/bin/activate
 	source /opt/ros/jazzy/setup.bash
