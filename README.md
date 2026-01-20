@@ -1,3 +1,9 @@
+# Notation from Yuan Zhao. 20. Jan
+
+The README.md for vision part please go to src/vision_part/vision
+
+
+
 # how to run it:
 ## Structure
 ```bash
@@ -21,14 +27,13 @@ workspace/
 
 ## Env settings
 
-
-
 	python3 -m venv groupE_venv --system-site-packages --symlinks
 	source groupE_venv/bin/activate
 
 	pip install mediapipe
 	pip install piper-tts
 	pip install faster-whisper sounddevice 
+	pip install face_recognition
 	soundfile numpy
 	pip install webrtcvad
 
