@@ -12,7 +12,8 @@ from ainex_controller.ainex_robot import AinexRobot
 from ainex_controller.ainex_hand_controller import HandController
 
 from geometry_msgs.msg import PoseStamped
-from scipy.spatial.transform import Rotation as R   # <-- NEW
+from std_msgs.msg import String     # <-- NEW
+from scipy.spatial.transform import Rotation as R
 
 """
 This is a refactored version of the ainex_hands_control_node.py
@@ -117,6 +118,10 @@ def hands_control(node, robot_model, ainex_robot,
     )
 
     # Main tracking loop
+
+    # Publisher for active hand side (for grasping node)
+    active_hand_pub = node.create_publisher(String, '/active_hand', 10)
+
     while rclpy.ok():
         # Let ROS process callbacks (Aruco detections)
         rclpy.spin_once(node, timeout_sec=0.01)
@@ -175,22 +180,25 @@ def hands_control(node, robot_model, ainex_robot,
         left_target = None
         right_target = None
 
-        if y_b > 0.05:
+        if y_b > 0:
             # marker on robot's left side -> left arm only
             desired_left = True
             left_target = target
-        elif y_b < -0.05:
+            active_hand_pub.publish(String(data="left"))
+        else:
             # marker on robot's right side -> right arm only
             desired_right = True
             right_target = target
-        else:
-            # marker roughly in front -> both arms, slightly offset
-            desired_left = True
-            desired_right = True
-            left_target = pin.SE3(target.rotation,
-                                  marker_pos_base + np.array([0.0, +0.08, 0.0]))
-            right_target = pin.SE3(target.rotation,
-                                   marker_pos_base + np.array([0.0, -0.08, 0.0]))
+            active_hand_pub.publish(String(data="right"))
+
+        # else:
+        #     # marker roughly in front -> both arms, slightly offset
+        #     desired_left = True
+        #     desired_right = True
+        #     left_target = pin.SE3(target.rotation,
+        #                           marker_pos_base + np.array([0.0, +0.08, 0.0]))
+        #     right_target = pin.SE3(target.rotation,
+        #                            marker_pos_base + np.array([0.0, -0.08, 0.0]))
 
         # ----- CONTROL LEFT ARM -----
         if desired_left:
