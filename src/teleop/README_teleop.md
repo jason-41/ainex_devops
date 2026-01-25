@@ -32,6 +32,31 @@ ros2 run ainex_vision aruco_detection_node
 ros2 run ainex_controller new_ainex_hands_control_node --ros-args -p mode:=2 -p sim:=True
 ```
 
+## 3. New Teleop Nodes (Updates 2026-01)
+
+### Turn Around 180 degrees
+Rotates the robot by a specified degree.
+```bash
+# Rotate 180 deg
+ros2 run teleop turn_around --ros-args -p degrees:=180.0
+```
+
+### Walk to Aruco
+Visual servoing to approach an Aruco marker and stop at 10cm distance.
+```bash
+ros2 run teleop walk_to_aruco
+```
+
+### Crouch / Stand Up
+Control the robot posture to crouch (for grasping) or stand up.
+```bash
+# Crouch
+ros2 run teleop crouch --ros-args -p action:=crouch
+
+# Stand Up
+ros2 run teleop crouch --ros-args -p action:=stand
+```
+
 ### if you want to reset the robot to the initial position:
 ```bash
 ros2 run ainex_motion joint_controller
