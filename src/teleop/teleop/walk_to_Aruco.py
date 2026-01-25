@@ -30,7 +30,7 @@ class AinexWalkToAruco(Node):
         # --------------------------------------------------
         self.dt = 0.05
 
-        self.Kx = 1.0
+        self.Kx = 1.2  # original 1.0
         self.Ky = 0.0
         self.Ktheta = 1.2
 
@@ -72,10 +72,10 @@ class AinexWalkToAruco(Node):
         self.aruco_pose_msg = None
 
         self.create_subscription(
-            PoseStamped,
-            "/aruco_pose",
-            self.aruco_callback,
-            10
+            PoseStamped,  # message type
+            "/aruco_pose",  # topic name
+            self.aruco_callback,  # callback
+            10  # QoS depth
         )
 
         self.cmd_vel_pub = self.create_publisher(
@@ -196,7 +196,7 @@ class AinexWalkToAruco(Node):
             return
 
         # # --------------------------------------------------
-        # # Proportional walking controller
+        # # Proportional walking controller （not used）
         # # --------------------------------------------------
         # vx = self.Kx * (x_m - self.stop_distance)
         # vy = self.Ky * y_m
@@ -214,7 +214,7 @@ class AinexWalkToAruco(Node):
         # ----------------------------------------
         # Heading-first walking controller
         # ----------------------------------------
-        angle_threshold = 0.2  # ~14 degrees
+        angle_threshold = 0.174  # ~10 degrees
 
         twist = Twist()
 
