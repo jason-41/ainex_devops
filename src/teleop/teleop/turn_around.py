@@ -3,14 +3,10 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from ament_index_python.packages import get_package_share_directory
+from servo_service.msg import SetPosture
 
-import numpy as np
 import time
 import math
-
-from ainex_controller.ainex_model import AiNexModel
-from ainex_controller.ainex_robot import AinexRobot
 
 
 class TurnAroundNode(Node):
@@ -26,46 +22,37 @@ class TurnAroundNode(Node):
         self.sim = self.get_parameter("sim").value
 
         self.cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.posture_pub = self.create_publisher(SetPosture, 'Set_Posture', 10)
 
-        self.dt = 0.05
-
-        # Initialize Robot Model for pose control (to keep safe posture)
-        try:
-            pkg = get_package_share_directory("ainex_description")
-            urdf_path = pkg + "/urdf/ainex.urdf"
-            self.robot_model = AiNexModel(self, urdf_path)
-            self.ainex_robot = AinexRobot(
-                self, self.robot_model, self.dt, sim=self.sim)
-            self.has_robot_control = True
-        except Exception as e:
-            self.get_logger().warn(
-                f"Could not initialize AinexRobot: {e}. Running in velocity-only mode.")
-            self.has_robot_control = False
+        # Allow some time for connection
+        time.sleep(0.5)
 
     def reset_posture(self):
-        if not self.has_robot_control:
-            return
-
         self.get_logger().info("Resetting posture before turning...")
-        # Initial posture (Standard standing pose)
-        q_init = np.zeros(self.robot_model.model.nq)
 
-        # Set standard arm positions (similar to hands_control.py)
-        # Assuming we want arms down or in a neutral safely tucked position
-        # Using the same init as hands_control for consistency
-        q_init[self.robot_model.get_joint_id('r_sho_roll')] = 1.4
-        q_init[self.robot_model.get_joint_id('l_sho_roll')] = -1.4
-        q_init[self.robot_model.get_joint_id('r_el_yaw')] = 1.58
-        q_init[self.robot_model.get_joint_id('l_el_yaw')] = -1.58
+        msg = SetPosture()
+        msg.posture_name = 'stand'
+        msg.duration = 1.5
 
-        self.ainex_robot.move_to_initial_position(q_init)
-        time.sleep(2.0)
+        # Publish the command
+        # We publish a few times just to be safe
+        for i in range(3):
+            self.posture_pub.publish(msg)
+            time.sleep(0.1)
+
+        # Wait for the motion to complete
+        time.sleep(msg.duration)
 
     def execute_turn(self):
         # 1. Reset Posture
         self.reset_posture()
 
         # 2. Turn
+        # Gait startup compensation: Legged robots take time to start moving.
+        # We add a small buffer or rely on a tuning factor.
+        # Increasing duration slightly to compensate for startup lag.
+        startup_compensation = 1.0  # seconds estimated for gait init
+
         target_rad = math.radians(abs(self.target_degrees))
         speed = abs(self.speed)
 
@@ -73,10 +60,18 @@ class TurnAroundNode(Node):
         if self.target_degrees < 0:
             speed = -speed
 
-        duration = target_rad / abs(speed)
+        # Calculate pure motion duration
+        motion_duration = target_rad / abs(speed)
+
+        # Total duration strategy:
+        # Simple open loop: just add startup time? Or assume effective motion starts late?
+        # A simple heuristic: run for calculated time + compensation
+        total_duration = motion_duration + startup_compensation
 
         self.get_logger().info(
-            f"Turning {self.target_degrees} degrees at {speed:.2f} rad/s. Duration: {duration:.2f}s")
+            f"Turning {self.target_degrees} degrees at {speed:.2f} rad/s.")
+        self.get_logger().info(
+            f"Motion Time: {motion_duration:.2f}s + Startup: {startup_compensation:.2f}s = Total: {total_duration:.2f}s")
 
         msg = Twist()
         msg.angular.z = float(speed)
@@ -86,22 +81,29 @@ class TurnAroundNode(Node):
         # Loop to publish velocity
         while rclpy.ok():
             elapsed = time.time() - start_time
-            if elapsed > duration:
+            if elapsed > total_duration:
                 break
 
             self.cmd_vel_pub.publish(msg)
 
-            # Spin to keep node alive and processing potential callbacks
-            rclpy.spin_once(self, timeout_sec=0.05)
-            # time.sleep(0.05) # spin_once handles the delay/timeout
+            # Enforce loop rate more strictly
+            # spin_once will return immediately if no events, so we need a manual sleep
+            # to prevent flooding the network if there are no callbacks.
+            time.sleep(0.05)
+            rclpy.spin_once(self, timeout_sec=0)
 
         # 3. Stop
         self.stop()
         self.get_logger().info("Turn complete.")
 
     def stop(self):
+        self.get_logger().info("Stopping robot...")
         msg = Twist()
-        self.cmd_vel_pub.publish(msg)
+        # Publish multiple times to ensure the robot receives the stop command
+        # (UDP/Best-effort reliability fix)
+        for _ in range(10):
+            self.cmd_vel_pub.publish(msg)
+            time.sleep(0.05)
 
 
 def main(args=None):
