@@ -33,7 +33,7 @@ joint_names = ['r_sho_pitch', 'r_sho_roll', 'r_el_pitch','r_el_yaw'] #change to 
 ```
 then in the workspace dir run in different cmd windows:
 ```bash
-ros2 run ros2 run ainex_motion joint_visualization
+ros2 run ainex_motion joint_visualization
 ros2 run plotjuggler plotjuggler
 ```
 ### 2. Lock & Unlock

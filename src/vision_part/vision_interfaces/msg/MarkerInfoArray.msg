@@ -1,5 +1,8 @@
-# 标准消息头
+# vision_interfaces/msg/MarkerInfoArray.msg
+
+# Header for the entire detection result
+# All markers are expressed in this frame and time
 std_msgs/Header header
 
-# MarkerInfo数组
+# List of detected markers
 MarkerInfo[] markers

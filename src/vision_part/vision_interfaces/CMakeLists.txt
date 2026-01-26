@@ -12,6 +12,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES std_msgs geometry_msgs
 )
 
-ament_export_dependencies(rosidl_default_runtime std_msgs geometry_msgs)
+ament_export_dependencies(rosidl_default_runtime)
+ament_export_dependencies(std_msgs geometry_msgs)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+endif()
 
 ament_package()

@@ -13,6 +13,17 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 
+def euler_to_quaternion(roll: float, pitch: float, yaw: float):
+    """
+    Small helper to convert Euler angles (roll, pitch, yaw in radians)
+    into a quaternion (x, y, z, w) using tf_transformations.
+
+    This keeps the TF math in one place so it can be reused by other nodes.
+    """
+    qx, qy, qz, qw = tf_trans.quaternion_from_euler(roll, pitch, yaw)
+    return qx, qy, qz, qw
+
+
 # ==============================================================================
 # Core Logic
 # ==============================================================================
@@ -71,7 +82,9 @@ class TFDebugPublisherNode(Node):
         self.transforms = {}  # name -> TransformStamped
 
         self.get_logger().info("TF Debug Publisher Started")
-        self.get_logger().info("Commands: add <name> <parent> <x> <y> <z> <roll> <pitch> <yaw> | list | remove <name> | exit")
+        self.get_logger().info(
+            "Commands: add <name> <parent> <x> <y> <z> <roll> <pitch> <yaw> | list | remove <name> | exit"
+        )
 
         self.timer = self.create_timer(0.1, self.publish_all)
         self._stop = False
@@ -101,14 +114,23 @@ class TFDebugPublisherNode(Node):
         t = TransformStamped()
         t.header.frame_id = parent
         t.child_frame_id = name
+
+        # Translation
         t.transform.translation.x = float(xyz[0])
         t.transform.translation.y = float(xyz[1])
         t.transform.translation.z = float(xyz[2])
-        q = tf_trans.quaternion_from_euler(float(rpy[0]), float(rpy[1]), float(rpy[2]))
-        t.transform.rotation.x = float(q[0])
-        t.transform.rotation.y = float(q[1])
-        t.transform.rotation.z = float(q[2])
-        t.transform.rotation.w = float(q[3])
+
+        # Rotation: use the helper function so TF math is centralized
+        qx, qy, qz, qw = euler_to_quaternion(
+            float(rpy[0]),
+            float(rpy[1]),
+            float(rpy[2]),
+        )
+        t.transform.rotation.x = qx
+        t.transform.rotation.y = qy
+        t.transform.rotation.z = qz
+        t.transform.rotation.w = qw
+
         self.transforms[name] = t
         print(f"Added TF: {name} -> {parent}")
 
@@ -132,6 +154,7 @@ class TFDebugPublisherNode(Node):
         for t in self.transforms.values():
             t.header.stamp = now
             self.broadcaster.sendTransform(t)
+
 
 def main(args=None):
     rclpy.init(args=args)

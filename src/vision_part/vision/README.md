@@ -1,14 +1,29 @@
 # Notation from Yuan Zhao, 20. Jan.
 ## topic list
 ```bash
-/aruco markers  #demonstrated the info from aruco detecter, details check src/vision_part/vision_interface
-/camera_image/compressed  # Original Image from robot
-/camera/image_undistorted  #Undistorted Image msg
+## Topic List
+
+/aruco_markers   # Structured ArUco detection results (marker_id, pose, distance, angles)
+/camera_image/compressed   # Original compressed image stream from robot camera
+/camera/image_undistorted   # Undistorted camera image after calibration
+/aruco_vis     # Visualization image with detected marker boxes and IDs (debug only)
+/marker_search/status      # Human-readable guidance text (turn left/right, stop, etc.)
+/marker_search/target_pose  # Target marker pose in camera_optical_link frame (NOT base_link/map)
+
+## Coordinate Frames
+
+camera_optical_link            # Camera optical frame (after undistortion, still camera frame)
+marker_<id>                    # ArUco marker frame published via TF
+camera_optical_link -> marker_<id>  # TF transform for marker pose (use tf2 to convert to base_link/map)
 ```
 
-
-
-
+# Build
+```bash
+cd groupE_final 
+# afterward in our working computer pwd is: cd ~/Documents/codeLibrary/groupE_final/groupE_final
+#ls  check if cd the right src
+source /opt/ros/jazzy/setup.bash #build ROS2 Jazzy
+```
 
 # Env settings
 ```bash
@@ -20,17 +35,22 @@ just source, don't recreate, or even you have to pip something new, remember num
 pip uninstall numpy
 pip install "numpy<2"
 ```
+# Build 
+``` bash
+colcon build --symlink-install
+source install/setup.bash
+```
 
-# Build
-```bash
-cd groupE_final 
-# afterward in our working computer pwd is: ~/Documents/codeLibrary/groupE_final/groupE_final$
+# if meet problem or want to clean(opticakl)
+``` bash
+rm -rf build install log
+source install/setup.bash
 colcon build --symlink-install
 ```
 
 # Vision part
 
-## Undistortion
+## Undistortion -Terminal A
 Open one new terminal and run the following code:
 ```bash
 . /opt/ros/jazzy/setup.bash
@@ -39,7 +59,7 @@ ros2 run vision undistortion
 ```
 It will open one window show the undistortion image and publish undistorted msg.
 
-## Aruco detection
+## Aruco detection - Terminal B
 Open one new terminal and run the following code:
 ```bash
 . /opt/ros/jazzy/setup.bash

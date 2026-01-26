@@ -1,8 +1,11 @@
 /my_venv/
+/groupE_venv/
 /log/
 /install/
 /build/
+.vscode/
 
 
 /src/ainex_vision/models/bo.jpg
 /src/speech_interface/models/
+.vscode/

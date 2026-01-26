@@ -61,8 +61,8 @@ class UndistortImageNode(Node):
         # Subscribe raw image
         self.sub = self.create_subscription(
             CompressedImage,
-            "camera_image/compressed",
-            self.image_callback,
+            "camera_image/compressed",              
+            self.image_callback,                
             qos
         )
 

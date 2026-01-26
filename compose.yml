@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  ainex:
+    build:
+      context: .
+      dockerfile: Dockerfile  
+    container_name: ainex_ros
+    network_mode: host
+    privileged: true
+    working_dir: /workspace
+
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+    volumes:
+      - . /workspace:rw
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev:/dev:rw
+
+    devices:
+      - /dev:/dev:rw
+      - /dev/snd:rw
+      - /dev/video0:rw
+
+    command: ["bash"]
+    tty: true
+    stdin_open: true
+    restart: unless-stopped

@@ -24,7 +24,8 @@ setup(
     entry_points={
         "console_scripts": [
             "aruco_detector_node = vision.aruco_detector_node:main",
-            "object_detector_node = vision.object_detector_node:main",
+            "object_detector = vision.object_detector:main",
+            "target_object_detector_node = vision.target_object_detector_node:main",
             "tf_debug_publisher_node = vision.tf_debug_publisher_node:main",
             'undistortion = vision.undistortion:main',
         ],

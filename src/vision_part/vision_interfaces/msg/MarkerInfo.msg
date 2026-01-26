@@ -1,24 +1,29 @@
+# vision_interfaces/msg/MarkerInfo.msg
 
-# 标准消息头
+# Standard ROS header
+# - stamp: detection time
+# - frame_id: reference frame (e.g. camera_optical_link)
 std_msgs/Header header
 
-# 标记ID
+# ArUco marker ID
 int32 marker_id
 
-# 标记位姿（相对于相机坐标系）
+# Estimated 3D pose of the marker in header.frame_id
 geometry_msgs/Pose pose
 
-# 到相机的距离（米）
+# Distance from camera to marker center [m]
 float64 distance
 
-# 水平角度（偏航角，弧度）
+# Horizontal angle (yaw) relative to camera optical axis [rad]
 float64 horizontal_angle
 
-# 垂直角度（俯仰角，弧度）
+# Vertical angle (pitch) relative to camera optical axis [rad]
 float64 vertical_angle
 
-# 法向量夹角（标记平面法线与相机光轴夹角，弧度）
+# Angle between marker plane normal and camera optical axis [rad]
+# (0 if not estimated)
 float64 normal_angle
 
-# 检测置信度（0.0-1.0）
+# Detection confidence [0.0 - 1.0]
+# (heuristic or reserved for future use)
 float64 confidence
