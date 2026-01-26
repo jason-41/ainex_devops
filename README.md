@@ -26,11 +26,8 @@ workspace/
 	python3 -m venv groupE_venv --system-site-packages --symlinks
 	source groupE_venv/bin/activate
 
-	pip install mediapipe
-	pip install piper-tts
-	pip install faster-whisper sounddevice 
-	soundfile numpy
-	pip install webrtcvad
+    python -m pip install "numpy==1.26.4"
+	pip install mediapipe piper-tts faster-whisper sounddevice soundfile webrtcvad
 
 	source groupE_venv/bin/activate
 	source /opt/ros/jazzy/setup.bash
