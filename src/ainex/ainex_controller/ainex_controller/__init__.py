@@ -1,3 +1,3 @@
-from .ainex_hand_controller import AinexHandController
+from .ainex_hand_controller import HandController
 
-__all__ = ["AinexHandController"]
+__all__ = ["HandController"]

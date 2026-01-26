@@ -204,6 +204,7 @@ pcl-msgs==1.0.0
 pendulum-msgs==0.33.7
 pexpect==4.9.0
 pillow==10.2.0
+pin
 piper-tts==1.3.0
 pluggy==1.4.0
 protobuf==4.25.8

@@ -20,22 +20,29 @@ workspace/
 ```
 
 ## Env settings
-
-
-
-	python3 -m venv groupE_venv --system-site-packages --symlinks
+```bash
+	python3 -m venv groupE_venv --symlinks
+    touch groupE_venv/COLCON_IGNORE
 	source groupE_venv/bin/activate
 
     python -m pip install "numpy==1.26.4"
+    python -m pip install "scipy==1.16.3"
 	pip install mediapipe piper-tts faster-whisper sounddevice soundfile webrtcvad
+    python -m pip install -U catkin_pkg empy lark pyyaml pin
+    python -m pip install "scipy==1.16.3"
 
+    # fallback
+    python -m pip install -r requirements.txt
+
+
+    source /opt/ros/jazzy/setup.bash
 	source groupE_venv/bin/activate
-	source /opt/ros/jazzy/setup.bash
+	
 	colcon build --symlink-install
 	source install/setup.bash
 
-
-	export PYTHONPATH=/groupE_venv/lib/python3.12/site-packages:$PYTHONPATH
+    export PYTHONPATH="$PWD/groupE_venv/lib/python3.12/site-packages:${PYTHONPATH}"
+```
 
 
 ## Launch the nodes
