@@ -24,7 +24,7 @@ endif()
 
 install(PROGRAMS teleop/crouch.py DESTINATION lib/${PROJECT_NAME} RENAME crouch)
 install(PROGRAMS teleop/hands_control.py DESTINATION lib/${PROJECT_NAME} RENAME hands_control)
-install(PROGRAMS teleop/teleop.py DESTINATION lib/${PROJECT_NAME} RENAME teleop_node)
+install(PROGRAMS teleop/main_control.py DESTINATION lib/${PROJECT_NAME} RENAME main_control)
 install(PROGRAMS teleop/turn_around.py DESTINATION lib/${PROJECT_NAME} RENAME turn_around)
 install(PROGRAMS teleop/walk_to_Aruco.py DESTINATION lib/${PROJECT_NAME} RENAME walk_to_aruco)
 
