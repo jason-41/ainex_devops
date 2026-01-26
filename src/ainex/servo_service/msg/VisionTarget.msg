@@ -1,0 +1,3 @@
+string object_color
+string object_shape
+uint32 current_aruco_id

@@ -1,0 +1,4 @@
+string object_color
+string object_shape
+uint8 pickup_location
+uint8 destination_location
