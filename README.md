@@ -29,11 +29,10 @@ workspace/
     python -m pip install "scipy==1.16.3"
 	pip install mediapipe piper-tts faster-whisper sounddevice soundfile webrtcvad
     python -m pip install -U catkin_pkg empy lark pyyaml pin
-    python -m pip install "scipy==1.16.3"
+    pip install "opencv-contrib-python<4.10"
 
     # fallback
     python -m pip install -r requirements.txt
-
 
     source /opt/ros/jazzy/setup.bash
 	source groupE_venv/bin/activate

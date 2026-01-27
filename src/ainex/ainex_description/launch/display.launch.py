@@ -34,13 +34,13 @@ def generate_launch_description():
         output='screen',
     )
 
-    # joint_state_publisher = Node(
-    #     package='joint_state_publisher',
-    #     executable='joint_state_publisher',
-    #     name='joint_state_publisher',
-    #     condition=UnlessCondition(gui),
-    #     parameters=[{'source_list': ['ainex_joint_states']}]
-    # )
+    joint_state_publisher_1 = Node(
+        package='joint_state_publisher',
+        executable='joint_state_publisher',
+        name='joint_state_publisher',
+        condition=UnlessCondition(gui),
+        parameters=[{'source_list': ['ainex_joint_states']}]
+    )
 
     joint_state_publisher = Node(
         package='joint_state_publisher_gui',    # 改成 GUI 包
@@ -78,6 +78,7 @@ def generate_launch_description():
         DeclareLaunchArgument('gui', default_value='false', description='Start joint_state_publisher_gui if true'),
         DeclareLaunchArgument('list', default_value="['ainex_joint_states']", description='source_list for joint_state_publisher'),
         joint_state_publisher_gui,
+        joint_state_publisher_1,
         joint_state_publisher,
         robot_state_publisher,
         rviz,

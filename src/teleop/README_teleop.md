@@ -64,3 +64,8 @@ ros2 run ainex_motion joint_controller
 ros2 service call /Lock_All_Joints std_srvs/srv/Empty {}
 ros2 service call /Unlock_All_Joints std_srvs/srv/Empty {}
 ```
+
+### Grasp
+To run grasp testing for cube hardcoded position relativ to camera frame
+```bash
+ros2 run teleop grasp --ros-args -p sim:=false -p use_camera:=false -p hardcoded_cam_xyz:="[0.05,0.05,-0.05]"

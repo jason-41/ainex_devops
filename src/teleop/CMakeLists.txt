@@ -27,5 +27,6 @@ install(PROGRAMS teleop/hands_control.py DESTINATION lib/${PROJECT_NAME} RENAME 
 install(PROGRAMS teleop/main_control.py DESTINATION lib/${PROJECT_NAME} RENAME main_control)
 install(PROGRAMS teleop/turn_around.py DESTINATION lib/${PROJECT_NAME} RENAME turn_around)
 install(PROGRAMS teleop/walk_to_Aruco.py DESTINATION lib/${PROJECT_NAME} RENAME walk_to_aruco)
+install(PROGRAMS teleop/grasp.py DESTINATION lib/${PROJECT_NAME} RENAME grasp)
 
 ament_package()
