@@ -1,0 +1,9 @@
+green:
+  h_min: 40
+  h_max: 80
+  s_min: 80
+  s_max: 255
+  v_min: 50
+  v_max: 255
+
+min_area: 500
