@@ -62,13 +62,28 @@ class ObjectDetectorNode(Node):
         mask = cv2.inRange(hsv, np.array([130, 30, 20]), np.array([160, 255, 255]))
         return self.clean(mask)
 
+    # @staticmethod
+    # def clean(mask):
+    #     # Small morphological clean-up for color masks
+    #     kernel = np.ones((5, 5), np.uint8)
+    #     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    #     mask = cv2.dilate(mask, kernel, iterations=1)
+    #     return mask
     @staticmethod
     def clean(mask):
-        # Small morphological clean-up for color masks
         kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        # 1) 去掉小噪声
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+        # 2) 关键：把断裂的区域“连起来”，补洞
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+        # 3) 轻微膨胀，保证边缘连续
         mask = cv2.dilate(mask, kernel, iterations=1)
+
         return mask
+
 
     # ---------------- Raw detection publisher (JSON) ----------------
 
@@ -248,9 +263,9 @@ class ObjectDetectorNode(Node):
             )
 
     def object_detect(self, frame):
-        # ========== ROI (central 90%) ==========
+        # ========== ROI (central 95%) ==========
         H, W = frame.shape[:2]
-        roi_scale = 0.9  # central 90%
+        roi_scale = 0.9  # central 95%
 
         roi_w = int(W * roi_scale)
         roi_h = int(H * roi_scale)
@@ -278,11 +293,11 @@ class ObjectDetectorNode(Node):
         mask_b = cv2.bitwise_and(self.get_blue_mask(hsv), roi_mask)
         mask_p = cv2.bitwise_and(self.get_purple_mask(hsv), roi_mask)
 
-        # cv2.imshow("RED Mask", mask_r)
-        # cv2.imshow("GREEN Mask", mask_g)
-        # cv2.imshow("BLUE Mask", mask_b)
-        # cv2.imshow("PURPLE Mask", mask_p)
-        # cv2.imshow("ROI Mask", roi_mask)
+        cv2.imshow("RED Mask", mask_r)
+        cv2.imshow("GREEN Mask", mask_g)
+        cv2.imshow("BLUE Mask", mask_b)
+        cv2.imshow("PURPLE Mask", mask_p)
+        cv2.imshow("ROI Mask", roi_mask)
 
         # ========== shape detection ==========
         win_circle = frame.copy()

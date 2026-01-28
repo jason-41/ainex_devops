@@ -156,8 +156,25 @@ class ArucoDetectionNode(Node):
 
         x, y, z = self.tvec_filt.flatten().tolist()
 
+        # ================== MANUAL CALIBRATION (scale + bias) ==================
+        # 说明：
+        #   x,y,z 仍然是 camera_optical_link 下的数值（X右 Y下 Z前）
+        #   这里只是“数值校正”，不改变检测流程
+        #
+        # 用法：
+        #   x_cal = sx*x + bx
+        #   y_cal = sy*y + by
+        #   z_cal = sz*z + bz
+        # ================== FINAL Z CALIBRATION ==================
+        sx, sy, sz = 1.0, 0.962, 0.573
+        bx, by, bz = 0.0, 0.052, 0.002
 
-        # Convert rvec -> quaternion + rpy
+        x = sx * x + bx
+        y = sy * y + by
+        z = sz * z + bz
+        # =========================================================
+
+                        # Convert rvec -> quaternion + rpy
         (qx, qy, qz, qw), (roll, pitch, yaw) = rvec_to_quat_and_rpy(rvec)
 
         self.publish_pose_msg(x, y, z, qx, qy, qz, qw)
