@@ -44,6 +44,9 @@ class AinexWalkToAruco(Node):
         # --- Manual stop flag ---
         self.manual_stop = False
 
+        # --- Finished flag ---
+        self.finished = False
+
         # --------------------------------------------------
         # Robot model (Pinocchio)
         # --------------------------------------------------
@@ -193,6 +196,8 @@ class AinexWalkToAruco(Node):
         # --------------------------------------------------
         if distance < self.stop_distance:
             self.cmd_vel_pub.publish(Twist())
+            self.get_logger().info("Target reached (distance < stop_distance).")
+            self.finished = True
             return
 
         # # --------------------------------------------------

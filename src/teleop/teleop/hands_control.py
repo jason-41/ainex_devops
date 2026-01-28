@@ -76,9 +76,13 @@ def run_test(node, robot_model, ainex_robot,
 # Object Tracking Control. Not decided yet: Grab or only track?
 # ============================================================
 def hands_control(node, robot_model, ainex_robot,
-                  left_hand_controller, right_hand_controller, dt):
+                  left_hand_controller, right_hand_controller, dt, duration=None):
 
-    node.get_logger().info("Running Exercise 2 (Aruco Tracking)…")
+    node.get_logger().info("Running hands_control (Aruco Tracking)…")
+
+    if duration is not None:
+        node.get_logger().info(
+            f"hands_control will run for {duration} seconds.")
 
     # Latest ArUco message
     aruco_pose_msg = {"msg": None}
@@ -122,7 +126,14 @@ def hands_control(node, robot_model, ainex_robot,
     # Publisher for active hand side (for grasping node)
     active_hand_pub = node.create_publisher(String, '/active_hand', 10)
 
+    start_time = time.time()
+
     while rclpy.ok():
+        # Check timeout
+        if duration is not None and (time.time() - start_time > duration):
+            node.get_logger().info("hands_control duration finished.")
+            break
+
         # Let ROS process callbacks (Aruco detections)
         rclpy.spin_once(node, timeout_sec=0.01)
 
