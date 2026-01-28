@@ -62,8 +62,8 @@ class TargetObjectDetectorNode(Node):
 
         # ---------------- params ----------------
         self.declare_parameter("camera_frame", "camera_optical_link")
-        self.declare_parameter("target_shape", "cube")
-        self.declare_parameter("target_color", "red")
+        self.declare_parameter("target_shape", "circle")
+        self.declare_parameter("target_color", "purple")
         self.declare_parameter("cube_size_m", 0.035)
 
         self.declare_parameter("z_calib_a", 1.0)
