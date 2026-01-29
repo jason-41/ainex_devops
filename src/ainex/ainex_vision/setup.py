@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_sub = ainex_vision.camera_sub:main',
+            'camera_sub_backup = ainex_vision.camera_sub_backup:main',
             'face_detection_node = ainex_vision.face_detection_node:main',
             'aruco_tf_broadcaster = ainex_vision.aruco_tf_broadcaster:main',
             'aruco_detection_node = ainex_vision.aruco_detection_node:main',

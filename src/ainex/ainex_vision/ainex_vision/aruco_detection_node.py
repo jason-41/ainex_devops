@@ -34,7 +34,10 @@ class ArucoDetectionNode(Node):
 
         # ArUco 字典
         self.aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
-        self.parameters = aruco.DetectorParameters_create()
+        try:
+            self.parameters = aruco.DetectorParameters_create()
+        except AttributeError:
+            self.parameters = aruco.DetectorParameters()
 
         # 你的相机内参（从你的原文件复制）
         self.camera_matrix = np.array([

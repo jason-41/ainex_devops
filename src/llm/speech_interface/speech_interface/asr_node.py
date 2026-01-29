@@ -65,9 +65,9 @@ class ASRNode(Node):
         # =========================
         # Audio and VAD parameters
         # =========================
-        self.sample_rate = 16000
+        self.sample_rate =8000
         # TODO: Adjust microphone device index if needed
-        self.device = 9                 # Microphone device index
+        self.device = 6                 # Microphone device index
         self.frame_duration_ms = 30     # Supported values: 10 / 20 / 30 ms
         self.silence_timeout_ms = 800   # Duration of silence to mark end of utterance
 
@@ -86,7 +86,7 @@ class ASRNode(Node):
         # VAD aggressiveness level: 0 (least) to 3 (most aggressive)
         self.vad = webrtcvad.Vad(3)
 
-        # =========================
+        # ========================~
         # Load Whisper ASR model
         # =========================
         self.get_logger().info("Loading Whisper model (faster-whisper)...")

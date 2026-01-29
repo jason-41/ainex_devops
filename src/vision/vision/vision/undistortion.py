@@ -25,6 +25,7 @@ class UndistortImageNode(Node):
         self.calibrated = False
         self.captured = 0
         self.last_capture_time = 0.0
+        self.declare_parameter("imshowEnable", True)
 
         self.K = None
         self.D = None
@@ -107,7 +108,12 @@ class UndistortImageNode(Node):
         undistorted = cv2.undistort(frame, self.K, self.D)
 
         # Show
-        cv2.imshow("Undistorted View", undistorted)
+        if self.get_parameter("imshowEnable").value:
+            cv2.imshow("Undistorted View", undistorted)
+            # Key handling
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                self.get_logger().info("[Undistort] Quit requested.")
+                self.destroy_node()
 
         # Publish
         undist_msg = self.bridge.cv2_to_imgmsg(
@@ -115,10 +121,6 @@ class UndistortImageNode(Node):
         )
         self.pub.publish(undist_msg)
 
-        # Key handling
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            self.get_logger().info("[Undistort] Quit requested.")
-            self.destroy_node()
 
 
 def main(args=None):

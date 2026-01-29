@@ -20,16 +20,16 @@ ros2 launch ainex_description display.launch.py gui:=false
 ## 2. Terminal
 For test only:
 ```bash
-ros2 run ainex_controller new_ainex_hands_control_node --ros-args -p mode:=1 -p sim:=True
+teleop hands_control
 ```
 ### or(if run on the real robot):
 ```bash
-ros2 run ainex_controller new_ainex_hands_control_node --ros-args -p mode:=1 -p sim:=False
+ros2 run teleop hands_control --ros-args -p mode:=1 -p sim:=False
 ```
 For Exercise 2 (original tutorial 6) only:
 ```bash
 ros2 run ainex_vision aruco_detection_node
-ros2 run ainex_controller new_ainex_hands_control_node --ros-args -p mode:=2 -p sim:=True
+ros2 run teleop hands_control --ros-args -p mode:=2 -p sim:=True
 ```
 
 ## 3. New Teleop Nodes (Updates 2026-01)

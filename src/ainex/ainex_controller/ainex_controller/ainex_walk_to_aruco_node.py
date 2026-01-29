@@ -142,6 +142,7 @@ class AinexWalkToAruco(Node):
         # No marker detected → stop
         # --------------------------------------------------
         if self.aruco_pose_msg is None:
+            # self.get_logger().warn("Waiting for aruco_pose...")
             self.cmd_vel_pub.publish(twist)
             return
 
@@ -149,6 +150,7 @@ class AinexWalkToAruco(Node):
         dt = (now - self.last_aruco_time).nanoseconds * 1e-9
 
         if dt > self.aruco_timeout:
+            self.get_logger().warn("Aruco pose timeout!")
             self.cmd_vel_pub.publish(Twist())
             return
         

@@ -9,8 +9,10 @@ def generate_launch_description():
         package='vision',
         executable='undistortion',
         name='undistortion_node',
-        output='screen'
+        output='screen',
+        parameters=[{'imshowEnable': False}]
     )
+
 
     # 2. ArUco marker detector
     aruco_detector_node = Node(

@@ -78,8 +78,8 @@ class FaceDetectionNode(Node):
         # (For Bo's laptop: if others want to reproduce it, change the topic name)
         # TODO: Adapt the topic name to match your camera setup and adpt to CompressedImage if needed
         self.sub = self.create_subscription(
-            Image,
-            'image_raw',
+            CompressedImage,
+            'camera_image/compressed',
             self.image_callback,
             qos
         )
@@ -143,7 +143,7 @@ class FaceDetectionNode(Node):
 
         # ---- authentication state ----
         self.known_face_counter = 0
-        self.REQUIRED_CONFIRMATIONS = 5
+        self.REQUIRED_CONFIRMATIONS = 1
         self.authenticated = False
 
 
@@ -180,11 +180,22 @@ class FaceDetectionNode(Node):
 
 
         # Convert ROS Image → OpenCV format
+        # try:
+        #     frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        # except Exception as e:
+        #     self.get_logger().error(f"cv_bridge conversion failed: {e}")
+        #     return
+
+        # Convert CompressedImage → OpenCV format
         try:
-            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            import numpy as np
+            # 将 JPEG 数据解码为 numpy 数组
+            np_arr = np.frombuffer(msg.data, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # 得到 BGR 图像
         except Exception as e:
             self.get_logger().error(f"cv_bridge conversion failed: {e}")
             return
+
 
         h, w, _ = frame.shape
 
@@ -210,9 +221,9 @@ class FaceDetectionNode(Node):
         has_face = False  # reset for next frame
 
         if result.detections:
-            self.get_logger().info(f">>> detections count: {len(result.detections)}")
+            # self.get_logger().info(f">>> detections count: {len(result.detections)}")
             for det in result.detections:
-                self.get_logger().info(">>> entered detection loop")
+                # self.get_logger().info(">>> entered detection loop")
                 bbox = det.bounding_box
 
                 # Face Recognition (Bo vs Stranger) 
@@ -308,8 +319,7 @@ class FaceDetectionNode(Node):
                 "Authentication complete. Shutting down face_detection_node."
             )
 
-            # shutdown node after successful authentication
-            rclpy.shutdown()
+            # shutdown node after successful authenticatio
             return
 
         # Publish detection result message

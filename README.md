@@ -21,17 +21,17 @@ workspace/
 
 ## Env settings
 ```bash
+    # order matters!
 	python3 -m venv groupE_venv --symlinks
     touch groupE_venv/COLCON_IGNORE
 	source groupE_venv/bin/activate
 
-    python -m pip install "numpy==1.26.4"
     python -m pip install "scipy==1.16.3"
-	pip install mediapipe piper-tts faster-whisper sounddevice soundfile webrtcvad
-    python -m pip install -U catkin_pkg empy lark pyyaml pin
-    pip install "opencv-contrib-python<4.10"
+	pip install mediapipe piper-tts faster-whisper sounddevice soundfile webrtcvad "numpy<2"
+    pip install catkin_pkg empy lark pyyaml opencv-contrib-python==4.9.0.80
+    python -m pip install "numpy==1.26.4"
 
-    # fallback
+    # fallback, not neccessary
     python -m pip install -r requirements.txt
 
     source /opt/ros/jazzy/setup.bash

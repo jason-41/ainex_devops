@@ -10,6 +10,7 @@ def generate_launch_description():
     # Arguments
     gui = LaunchConfiguration('gui')
     source_list = LaunchConfiguration('list')
+    fake_hardware = LaunchConfiguration('fake_hardware')
 
     # Find package paths
     ainex_description = FindPackageShare('ainex_description')
@@ -42,13 +43,13 @@ def generate_launch_description():
         parameters=[{'source_list': ['ainex_joint_states']}]
     )
 
-    joint_state_publisher = Node(
-        package='joint_state_publisher_gui',    # 改成 GUI 包
-        executable='joint_state_publisher_gui', # 同上
-        name='joint_state_publisher_fake',      # 避免命名冲突，随便起名
-        condition=UnlessCondition(gui),
-        parameters=[{'use_gui': False}]         # 等价于非 GUI 模式运行
-    )
+    # joint_state_publisher = Node(
+    #     package='joint_state_publisher_gui',    # 改成 GUI 包
+    #     executable='joint_state_publisher_gui', # 同上
+    #     name='joint_state_publisher_fake',      # 避免命名冲突，随便起名
+    #     condition=UnlessCondition(gui),
+    #     parameters=[{'use_gui': False}]         # 等价于非 GUI 模式运行
+    # )
 
     robot_state_publisher = Node(
         package='robot_state_publisher',
@@ -65,6 +66,14 @@ def generate_launch_description():
         output='screen'
     )
 
+    monitor_real_robot = Node(
+        package='ainex_controller',
+        executable='monitor_real_robot',
+        name='monitor_real_robot',
+        condition=UnlessCondition(fake_hardware),
+        output='screen'
+    )
+
     # static_tf = Node(
     #     package='tf2_ros',
     #     executable='static_transform_publisher',
@@ -77,10 +86,12 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('gui', default_value='false', description='Start joint_state_publisher_gui if true'),
         DeclareLaunchArgument('list', default_value="['ainex_joint_states']", description='source_list for joint_state_publisher'),
+        DeclareLaunchArgument('fake_hardware', default_value='false', description='If false, connect to real robot'),
         joint_state_publisher_gui,
         joint_state_publisher_1,
-        joint_state_publisher,
+        # joint_state_publisher,
         robot_state_publisher,
         rviz,
+        monitor_real_robot
         # static_tf
     ])

@@ -13,7 +13,7 @@ class TurnAroundNode(Node):
     def __init__(self):
         super().__init__("turn_around_node")
 
-        self.declare_parameter("speed", 0.4)
+        self.declare_parameter("speed", 2)
         self.declare_parameter("degrees", 180.0)
         self.declare_parameter("sim", True)
 
@@ -67,16 +67,22 @@ class TurnAroundNode(Node):
         # Simple open loop: just add startup time? Or assume effective motion starts late?
         # A simple heuristic: run for calculated time + compensation
         total_duration = motion_duration + startup_compensation
+        total_duration = 60
 
         self.get_logger().info(
             f"Turning {self.target_degrees} degrees at {speed:.2f} rad/s.")
         self.get_logger().info(
             f"Motion Time: {motion_duration:.2f}s + Startup: {startup_compensation:.2f}s = Total: {total_duration:.2f}s")
-
+        
+        # NOTE: If pure rotation triggers translation, try to zero linear X/Y
         msg = Twist()
+        msg.angular.z = 0
         msg.angular.z = float(speed)
+        msg.linear.x = 0.0
+        msg.linear.y = 0.0
 
         start_time = time.time()
+
 
         # Loop to publish velocity
         while rclpy.ok():

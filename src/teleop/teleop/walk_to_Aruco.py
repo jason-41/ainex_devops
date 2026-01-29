@@ -17,7 +17,9 @@ import threading
 from ainex_controller.ainex_model import AiNexModel
 
 from geometry_msgs.msg import PoseStamped, Twist
+from vision_interfaces.msg import MarkerInfoArray, MarkerInfo
 from scipy.spatial.transform import Rotation as R
+
 
 
 class AinexWalkToAruco(Node):
@@ -75,8 +77,8 @@ class AinexWalkToAruco(Node):
         self.aruco_pose_msg = None
 
         self.create_subscription(
-            PoseStamped,  # message type
-            "/aruco_pose",  # topic name
+            MarkerInfoArray,  # message type
+            "/ainex/vision/markers",  # topic name
             self.aruco_callback,  # callback
             10  # QoS depth
         )
@@ -102,9 +104,14 @@ class AinexWalkToAruco(Node):
     # --------------------------------------------------
     # Callbacks
     # --------------------------------------------------
-    def aruco_callback(self, msg: PoseStamped):
-        self.aruco_pose_msg = msg
+    def aruco_callback(self, msg: MarkerInfoArray):
+        if not msg.markers:
+            return
+        # Just pick the first marker for now or filter by ID
+        best_marker = msg.markers[0]
+        self.aruco_pose_msg = best_marker
         self.last_aruco_time = self.get_clock().now()
+
 
     # def keyboard_listener(self):
     #     """

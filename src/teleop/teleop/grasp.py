@@ -285,6 +285,9 @@ class AinexGraspNode(Node):
         # ARM SELECTION
         # ----------------------------
         arm_side = "left" if float(obj_pos[1]) > 0.0 else "right"
+        # asymteric left hand gripper
+        if (arm_side=="left"):
+            self.gripper_open_q, self.gripper_close_q = self.gripper_close_q, self.gripper_open_q
         self.get_logger().info(f"[ARM_SELECT] y={float(obj_pos[1]):.3f} -> arm_side={arm_side}")
 
         self.hand_ctrl = HandController(self, self.robot_model, arm_side=arm_side)

@@ -104,12 +104,20 @@ def hands_control(node, robot_model, ainex_robot,
     right_tracking = False
 
     # --- Get camera frame in Pinocchio model ---
+    # User requested kinematic chain: BASE -> HEAD-TILT -> CAMERA LINK -> CAMERA OPTICAL LINK
+    # We use head_tilt_link because URDF camera_link is fixed to body.
     try:
-        cam_frame_id = robot_model.model.getFrameId("camera_link")
+        head_tilt_id = robot_model.model.getFrameId("head_tilt_link")
     except Exception as e:
         node.get_logger().error(
-            f"Could not find 'camera_link' in Pinocchio model: {e}")
+            f"Could not find 'head_tilt_link' in Pinocchio model: {e}")
         return
+
+    # Approximate offset from head_tilt_link to camera_link based on URDF
+    # P_tilt_cam = P_body_cam - (P_body_pan + P_pan_tilt)
+    # Calculated as [0.038068, 0.018573, 0.016398]
+    offset_pos = np.array([0.038068, 0.018573, 0.016398])
+    T_tilt_cam = pin.SE3(np.eye(3), offset_pos)
 
     # Standard ROS transform: camera_link -> camera_optical_link
     R_clink_opt = R.from_euler(
@@ -117,8 +125,7 @@ def hands_control(node, robot_model, ainex_robot,
     T_clink_opt = pin.SE3(R_clink_opt, np.zeros(3))
 
     node.get_logger().info(
-        f"Using Pinocchio frame 'camera_link' (id={cam_frame_id}) "
-        "and standard camera_link->camera_optical_link rotation."
+        f"Using Pinocchio frame 'head_tilt_link' (id={head_tilt_id}) + fixed offset for camera_link."
     )
 
     # Main tracking loop
@@ -160,8 +167,9 @@ def hands_control(node, robot_model, ainex_robot,
         R_opt_m = R.from_quat(q_opt).as_matrix()
         T_opt_m = pin.SE3(R_opt_m, p_opt)     # camera_optical_link -> marker
 
-        # base_link -> camera_link from Pinocchio
-        T_b_clink = robot_model.data.oMf[cam_frame_id]
+        # base_link -> head_tilt -> camera_link
+        T_b_head = robot_model.data.oMf[head_tilt_id]
+        T_b_clink = T_b_head * T_tilt_cam
 
         # base_link -> camera_optical_link
         T_b_opt = T_b_clink * T_clink_opt

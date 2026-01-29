@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import json
-import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -26,7 +25,7 @@ import tf_transformations
 class RawDetection:
     shape: str
     color: str
-    stamp: float
+    stamp: float  # seconds (ROS time)
     center_uv: Optional[Tuple[float, float]] = None
     quad: Optional[np.ndarray] = None          # (4,2)
     bbox: Optional[Tuple[float, float, float, float]] = None
@@ -66,12 +65,21 @@ class TargetObjectDetectorNode(Node):
         self.declare_parameter("target_color", "purple")
         self.declare_parameter("cube_size_m", 0.035)
 
+        # Z linear calibration (optional)
         self.declare_parameter("z_calib_a", 1.0)
         self.declare_parameter("z_calib_b", 0.0)
 
+        # ---------- NEW: timing + filtering ----------
+        # Use only detections close to the latest frame (avoid mixing ~0.3s history)
+        self.declare_parameter("latest_window_s", 0.05)   # 50ms
+        self.declare_parameter("fresh_timeout_s", 0.30)   # Maximum lifetime of raw detections (for dropping too-old data)
+
+        # EMA low-pass filter (only for position)
+        self.declare_parameter("ema_alpha", 0.10)         # 0.15~0.30 
+        self.declare_parameter("enable_outlier_gate", False)
+        self.declare_parameter("max_jump_m", 0.05)        # Max allowed jump per update (meters), tune by distance/FPS
 
         self.camera_frame = self.get_parameter("camera_frame").value
-        
 
         # ---------------- state ----------------
         self.K = None
@@ -83,41 +91,42 @@ class TargetObjectDetectorNode(Node):
         self.bridge = CvBridge()
         self.last_frame = None
         self.last_image_stamp = None
-        self.last_center_tvec = None  
 
         self.last_status = ""
         self.last_pose = None
+
         self.target_shape = None
         self.target_color = None
 
-        # ---------------- pubs ----------------
-        self.pub_pose = self.create_publisher(
-            PoseStamped, "/detected_object_pose", 10
-        )
-        self.pub_status = self.create_publisher(
-            String, "/detected_object/status", 10
-        )
-        self.pub_picked_pose = self.create_publisher(
-            PoseStamped, "/picked_object_pose", 10
-        )
+        # cube center continuity (existing logic)
+        self.last_center_tvec = None  # np.array shape (3,)
 
+        # MOD: target pick hysteresis (stickiness to previous target)
+        self.last_picked_det: Optional[RawDetection] = None
+
+        # EMA state
+        self.ema_t = None  # np.array shape (3,)
+        self.last_raw_t = None  # for outlier gate
+
+        # ---------------- pubs ----------------
+        self.pub_pose = self.create_publisher(PoseStamped, "/detected_object_pose", 10)
+        self.pub_status = self.create_publisher(String, "/detected_object/status", 10)
+        self.pub_picked_pose = self.create_publisher(PoseStamped, "/picked_object_pose", 10)
 
         # ---------------- subs ----------------
-        self.create_subscription(
-            CameraInfo, "/camera_info", self.cb_caminfo, qos_profile_sensor_data
-        )
-        self.create_subscription(
-            String, "/detected_objects_raw", self.cb_det_raw, 10
-        )
-        self.create_subscription(
-            Image, "/camera/image_undistorted", self.cb_image, qos_profile_sensor_data
-        )
+        self.create_subscription(CameraInfo, "/camera_info", self.cb_caminfo, qos_profile_sensor_data)
+        self.create_subscription(String, "/detected_objects_raw", self.cb_det_raw, 10)
+        self.create_subscription(Image, "/camera/image_undistorted", self.cb_image, qos_profile_sensor_data)
 
         self.timer = self.create_timer(0.1, self.on_timer)
-
         cv2.namedWindow("TargetObjectDetector", cv2.WINDOW_NORMAL)
 
-        self.get_logger().info("TargetObjectDetectorNode started")
+        self.get_logger().info("TargetObjectDetectorNode started (Scheme B: latest-window + uniq + EMA)")
+
+    # ============================ time helpers ============================
+
+    def ros_now_s(self) -> float:
+        return self.get_clock().now().nanoseconds / 1e9
 
     # ============================ callbacks ============================
 
@@ -142,24 +151,29 @@ class TargetObjectDetectorNode(Node):
         except Exception:
             return
 
+        # IMPORTANT: use ROS time base only
+        stamp = float(data.get("stamp", self.ros_now_s()))
+
         det = RawDetection(
             shape=str(data.get("shape", "")).lower(),
             color=str(data.get("color", "")).lower(),
-            stamp=float(data.get("stamp", time.time())),
+            stamp=stamp,
             radius_px=float(data.get("radius", 0.0)),
         )
 
-        if "center_uv" in data and len(data["center_uv"]) == 2:
-            det.center_uv = tuple(data["center_uv"])
+        if "center_uv" in data and isinstance(data["center_uv"], list) and len(data["center_uv"]) == 2:
+            det.center_uv = (float(data["center_uv"][0]), float(data["center_uv"][1]))
 
-        if "quad" in data and len(data["quad"]) == 8:
+        if "quad" in data and isinstance(data["quad"], list) and len(data["quad"]) == 8:
             det.quad = np.array(data["quad"], dtype=np.float64).reshape(4, 2)
 
-        if "bbox" in data and len(data["bbox"]) == 4:
-            det.bbox = tuple(data["bbox"])
+        if "bbox" in data and isinstance(data["bbox"], list) and len(data["bbox"]) == 4:
+            det.bbox = (float(data["bbox"][0]), float(data["bbox"][1]),
+                        float(data["bbox"][2]), float(data["bbox"][3]))
 
         self.detections.append(det)
-        self.detections = self.detections[-50:]
+        # keep a bit more; we will filter by time anyway
+        self.detections = self.detections[-200:]
 
     # ============================ main loop ============================
 
@@ -172,7 +186,22 @@ class TargetObjectDetectorNode(Node):
         self.target_shape = self.get_parameter("target_shape").value.lower()
         self.target_color = self.get_parameter("target_color").value.lower()
 
-        fresh = [d for d in self.detections if time.time() - d.stamp < 0.3]
+        now = self.ros_now_s()
+        fresh_timeout = float(self.get_parameter("fresh_timeout_s").value)
+        latest_window = float(self.get_parameter("latest_window_s").value)
+
+        dets_fresh = [d for d in self.detections if (now - d.stamp) < fresh_timeout]
+        self.detections = dets_fresh  # shrink in-place
+
+        if not dets_fresh:
+            self.publish_status_once("NO OBJECT")
+            self.draw_debug(None, "NO OBJECT", fresh=[])
+            return
+        t_latest = max(d.stamp for d in dets_fresh)
+        dets_latest = [d for d in dets_fresh if (t_latest - d.stamp) < latest_window]
+
+        candidates = [d for d in dets_latest if d.shape == self.target_shape and d.color == self.target_color]
+        uniq_candidates = self.merge_detections(candidates)
 
         status = None
         target = None
@@ -180,14 +209,14 @@ class TargetObjectDetectorNode(Node):
         tvec = None
         pose = None
 
-        if not fresh:
+        if not dets_latest:
             status = "NO OBJECT"
-
         else:
-            has_shape = any(d.shape == self.target_shape for d in fresh)
-            has_color = any(d.color == self.target_color for d in fresh)
+            has_shape = any(d.shape == self.target_shape for d in dets_latest)
+            has_color = any(d.color == self.target_color for d in dets_latest)
 
-            target = self.pick_target(fresh, self.target_shape, self.target_color)
+            # NOTE: pick only among uniq candidates
+            target = self.pick_target_from_uniq(uniq_candidates, self.target_shape)
 
             if target is not None:
                 status = "MATCH"
@@ -196,54 +225,147 @@ class TargetObjectDetectorNode(Node):
                     pose, rvec, tvec = self.pose_from_cube(target)
                 elif self.target_shape == "circle":
                     pose, rvec, tvec = self.pose_from_circle(target)
+                else:
+                    pose = None
 
-                if pose is not None:
+                if pose is not None and tvec is not None:
+                    # apply Z calib first (optional)
                     pose = self.apply_z_linear_calib(pose)
-                    self.pub_pose.publish(pose)  # /detected_object_pose
-                    self.pub_picked_pose.publish(pose)  # /picked_object_pose
+
+                    # EMA + outlier gate on position (tvec)
+                    t_filtered = self.filter_tvec(tvec.reshape(3))
+                    pose.pose.position.x = float(t_filtered[0])
+                    pose.pose.position.y = float(t_filtered[1])
+                    pose.pose.position.z = float(t_filtered[2])*20/35
+
+                    # publish
+                    self.pub_pose.publish(pose)
+                    self.pub_picked_pose.publish(pose)
                     self.last_pose = pose
                 else:
                     status = "POSE FAILED"
 
-
             elif has_color and not has_shape:
                 status = "NO SHAPE"
-
             elif has_shape and not has_color:
                 status = "NO COLOR"
-
             else:
                 status = "NO MATCH"
 
-            # ---------- 统一出口 ----------
         self.publish_status_once(status)
-        self.draw_debug(target, status, rvec, tvec, fresh=fresh)
 
-    # ============================ logic ============================
 
-    def pick_target(self, dets, want_shape, want_color):
-        # 1) 先筛出所有 match
-        matches = [d for d in dets if d.shape == want_shape and d.color == want_color]
-        if not matches:
+        # debug: show only latest-window dets + uniq candidates 
+        self.draw_debug(target, status, rvec, tvec, fresh=dets_latest, uniq_candidates=uniq_candidates)
+
+    # ============================ uniq merge ============================
+
+    def merge_detections(self, dets: List[RawDetection]) -> List[RawDetection]:
+        """
+        Merge duplicates that likely correspond to the same physical object.
+        circle: merge by center distance, keep larger radius
+        cube  : merge by bbox center distance+size similarity, keep larger area
+        """
+        uniq: List[RawDetection] = []
+
+        for d in dets:
+            merged = False
+            for i, u in enumerate(uniq):
+                if self.same_det(d, u):
+                    # keep the "better" one
+                    if d.shape == "circle":
+                        if d.radius_px > u.radius_px:
+                            uniq[i] = d
+                    elif d.shape == "cube":
+                        # prefer larger bbox area if available
+                        da = self.bbox_area(d)
+                        ua = self.bbox_area(u)
+                        if da > ua:
+                            uniq[i] = d
+                    merged = True
+                    break
+            if not merged:
+                uniq.append(d)
+        return uniq
+
+    # ============================ pick ============================
+
+    def bbox_area(self, d: RawDetection) -> float:
+        if d.bbox is None:
+            return -1.0
+        _, _, w, h = d.bbox
+        return float(w) * float(h)
+
+    def pick_target_from_uniq(self, uniq_matches: List[RawDetection], want_shape: str) -> Optional[RawDetection]:
+        if not uniq_matches:
+            # Reset hysteresis state when there is no candidate
+            self.last_picked_det = None
             return None
 
-        # 2) circle：选半径最大的（最近）
+        # MOD: simple hysteresis factor – new target must be 20% better to switch
+        hysteresis_gain = 1.2
+
         if want_shape == "circle":
-            # radius_px 可能为 0 的要排掉
-            matches = [d for d in matches if d.radius_px is not None and d.radius_px > 1.0]
-            if not matches:
+            # remove invalid radius
+            uniq_matches = [d for d in uniq_matches if d.radius_px is not None and d.radius_px > 1.0]
+            if not uniq_matches:
+                # No valid circle detections this frame
+                self.last_picked_det = None
                 return None
-            return max(matches, key=lambda d: d.radius_px)
 
-        # 3) cube：选 bbox 面积最大的（最近）
+            best = max(uniq_matches, key=lambda d: d.radius_px)
+
+            # If we had a previous target and it still exists in this frame, apply hysteresis
+            prev = None
+            if self.last_picked_det is not None:
+                for d in uniq_matches:
+                    if self.same_det(d, self.last_picked_det):
+                        prev = d
+                        break
+
+            if prev is None:
+                # No previous target in current candidates -> just use best
+                chosen = best
+            else:
+                # Only switch if best is significantly larger (radius > 1.2x)
+                if best is prev or best.radius_px <= prev.radius_px * hysteresis_gain:
+                    chosen = prev
+                else:
+                    chosen = best
+
+            self.last_picked_det = chosen
+            return chosen
+
         if want_shape == "cube":
-            def bbox_area(d):
-                if d.bbox is None:
-                    return -1.0
-                _, _, w, h = d.bbox
-                return float(w) * float(h)
+            # prefer bbox area
+            best = max(uniq_matches, key=lambda d: self.bbox_area(d))
+            best_area = self.bbox_area(best)
+            if best_area <= 0:
+                # Fallback: will use quad area below
+                prev = None
+            else:
+                # Hysteresis logic based on bbox area
+                prev = None
+                if self.last_picked_det is not None:
+                    for d in uniq_matches:
+                        if self.same_det(d, self.last_picked_det):
+                            prev = d
+                            break
 
-            # bbox 没有的话就退化：按 quad 面积（鞋带公式）估
+                if prev is not None:
+                    prev_area = self.bbox_area(prev)
+                    if prev_area > 0 and best is not prev and best_area > prev_area * hysteresis_gain:
+                        chosen = best
+                    else:
+                        chosen = prev
+                    self.last_picked_det = chosen
+                    return chosen
+                else:
+                    # No history – directly use best
+                    self.last_picked_det = best
+                    return best
+
+            # fallback: quad polygon area
             def quad_area(d):
                 if d.quad is None:
                     return -1.0
@@ -251,17 +373,16 @@ class TargetObjectDetectorNode(Node):
                 x = pts[:, 0]; y = pts[:, 1]
                 return 0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
 
-            # 优先 bbox
-            best = max(matches, key=lambda d: bbox_area(d))
-            if bbox_area(best) > 0:
-                return best
+            chosen = max(uniq_matches, key=lambda d: quad_area(d))
+            self.last_picked_det = chosen
+            return chosen
 
-            # bbox 全没，就用 quad
-            return max(matches, key=lambda d: quad_area(d))
+        # Other shapes: no hysteresis, just pick the first
+        chosen = uniq_matches[0]
+        self.last_picked_det = chosen
+        return chosen
 
-        # 4) 其他 shape：先随便返回一个（或你以后再扩展）
-        return matches[0]
-
+    # ============================ pose estimation ============================
 
     def pose_from_cube(self, det: RawDetection):
         if det.quad is None:
@@ -269,7 +390,7 @@ class TargetObjectDetectorNode(Node):
 
         img_pts = order_quad_points(det.quad)
 
-        size = self.get_parameter("cube_size_m").value
+        size = float(self.get_parameter("cube_size_m").value)
         h = size / 2.0
         obj_pts = np.array([
             [-h, -h, 0],
@@ -278,34 +399,29 @@ class TargetObjectDetectorNode(Node):
             [-h,  h, 0],
         ], dtype=np.float64)
 
-        ok, rvec, tvec = cv2.solvePnP(
+        ok, rvec, tvec_face = cv2.solvePnP(
             obj_pts, img_pts, self.K, self.D,
             flags=cv2.SOLVEPNP_IPPE_SQUARE
         )
         if not ok:
             return None, None, None
-        
-        # ---- 把“面中心” -> “立方体中心（稳定版）” ----
-        size = float(self.get_parameter("cube_size_m").value)
-        h = size / 2.0
 
-        R, _ = cv2.Rodrigues(rvec)                 # 3x3
-        n_cam = R @ np.array([0.0, 0.0, 1.0])      # 面法向在相机坐标系
+        # Convert face center -> cube center with continuity (+h/-h)
+        R, _ = cv2.Rodrigues(rvec)
+        n_cam = R @ np.array([0.0, 0.0, 1.0])
 
-        # 1) 归一化（非常重要）
         norm = np.linalg.norm(n_cam)
         if norm > 1e-9:
             n_cam = n_cam / norm
 
-        t_center_plus  = tvec.reshape(3) + n_cam * h
-        t_center_minus = tvec.reshape(3) - n_cam * h
+        t_face = tvec_face.reshape(3)
+        t_center_plus  = t_face + n_cam * h
+        t_center_minus = t_face - n_cam * h
 
-        # 2) 连续性选择（防止旋转时 +h / -h 来回跳）
         if self.last_center_tvec is None:
-            # 第一帧：选 Z 更大的（更远离相机）
+            # first frame: choose farther z
             t_center = t_center_plus if t_center_plus[2] > t_center_minus[2] else t_center_minus
         else:
-            # 后续：选“离上一帧更近”的那个
             dp = np.linalg.norm(t_center_plus  - self.last_center_tvec)
             dm = np.linalg.norm(t_center_minus - self.last_center_tvec)
             t_center = t_center_plus if dp < dm else t_center_minus
@@ -319,24 +435,23 @@ class TargetObjectDetectorNode(Node):
         ps.pose.position.y = float(t_center[1])
         ps.pose.position.z = float(t_center[2])
 
-        # 你现在只关心中心，不关心姿态 → 固定姿态（非常对）
+        # you don't care orientation -> identity
         ps.pose.orientation.x = 0.0
         ps.pose.orientation.y = 0.0
         ps.pose.orientation.z = 0.0
         ps.pose.orientation.w = 1.0
 
-        return ps, rvec, t_center.reshape(3, 1)
-
-
+        tvec_center = t_center.reshape(3, 1)
+        return ps, rvec, tvec_center
 
     def pose_from_circle(self, det: RawDetection):
-        #center + radius
         if det.center_uv is None or det.radius_px <= 1.0:
             return None, None, None
 
         u, v = det.center_uv
         r_px = float(det.radius_px)
 
+        # physical radius (m) of the ball/circle
         R_m = 0.0315
 
         fx = float(self.K[0, 0])
@@ -344,7 +459,6 @@ class TargetObjectDetectorNode(Node):
         cx = float(self.K[0, 2])
         cy = float(self.K[1, 2])
 
-    
         Z = fx * R_m / r_px
         X = (u - cx) * Z / fx
         Y = (v - cy) * Z / fy
@@ -364,169 +478,138 @@ class TargetObjectDetectorNode(Node):
         tvec = np.array([[X], [Y], [Z]], dtype=np.float64)
         return ps, None, tvec
 
+    # ============================ filtering (EMA + outlier gate) ============================
 
-    # ============================ debug ============================
+    def filter_tvec(self, t_raw: np.ndarray) -> np.ndarray:
+        """
+        t_raw: shape (3,)
+        returns filtered tvec (3,)
+        """
+        alpha = float(self.get_parameter("ema_alpha").value)
+        enable_gate = bool(self.get_parameter("enable_outlier_gate").value)
+        # enable_gate = False
+        max_jump = float(self.get_parameter("max_jump_m").value)
+        t_raw = np.asarray(t_raw, dtype=np.float64).reshape(3)
+        if self.ema_t is None:
+            self.ema_t = t_raw
+
+        # Outlier gate (compare raw jumps)
+        if self.last_raw_t is None:
+            self.last_raw_t = t_raw
+        if enable_gate and self.last_raw_t is not None:
+            jump = np.linalg.norm(t_raw - self.last_raw_t)
+            if jump > max_jump:
+                # reject this update: return previous EMA if exists, else last raw
+                self.get_logger().warn(f"[filter] outlier rejected: jump={jump:.3f} m > {max_jump:.3f} m")
+                if self.ema_t is not None:
+                    return self.ema_t
+                return self.last_raw_t
+        else:
+            self.last_raw_t = t_raw
+
+            a = float(alpha)
+            self.ema_t = (1.0 - a) * self.ema_t + a * t_raw
+
+        return self.ema_t
+    # ============================ debug / visualization ============================
+
     def same_det(self, a: RawDetection, b: RawDetection) -> bool:
-        """
-        判断两个 detection 是否是同一个目标，用于避免黄/绿叠加。
-        circle: 用 center 距离判断
-        cube  : 用 bbox IOU 判断（简化版：中心距离 + 尺寸相近）
-        """
         if a is None or b is None:
             return False
         if a.shape != b.shape:
             return False
 
-        # ----- circle -----
+        # circle: center distance
         if a.shape == "circle":
             if a.center_uv is None or b.center_uv is None:
                 return False
             ax, ay = a.center_uv
             bx, by = b.center_uv
             dist2 = (ax - bx) ** 2 + (ay - by) ** 2
-            # 阈值：像素距离小于 15 px 认为同一个（你可调大一点如 25）
-            return dist2 < 15.0 ** 2
+            return dist2 < 20.0 ** 2  # 20 px
 
-        # ----- cube -----
+        # cube: bbox center distance + size similarity
         if a.shape == "cube":
             if a.bbox is None or b.bbox is None:
                 return False
             ax, ay, aw, ah = a.bbox
             bx, by, bw, bh = b.bbox
-
             acx, acy = ax + aw / 2.0, ay + ah / 2.0
             bcx, bcy = bx + bw / 2.0, by + bh / 2.0
             dist2 = (acx - bcx) ** 2 + (acy - bcy) ** 2
-
-            # 中心距离阈值 + 尺寸相近（防止误判）
-            size_ok = (abs(aw - bw) < 0.4 * max(aw, bw)) and (abs(ah - bh) < 0.4 * max(ah, bh))
-            return (dist2 < 25.0 ** 2) and size_ok
+            size_ok = (abs(aw - bw) < 0.5 * max(aw, bw)) and (abs(ah - bh) < 0.5 * max(ah, bh))
+            return (dist2 < 30.0 ** 2) and size_ok
 
         return False
 
-
-    def draw_debug(self, det, note, rvec=None, tvec=None, fresh=None):
+    def draw_debug(self, det, note, rvec=None, tvec=None, fresh=None, uniq_candidates=None):
         if self.last_frame is None:
             return
 
         frame = self.last_frame.copy()
 
-        # ===== Target definition (top-right, single line) =====
+        # target definition
         text = f"target object = {self.target_color}, {self.target_shape}"
         (font_w, font_h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
         margin = 20
         tx = frame.shape[1] - margin - font_w
         ty = margin + font_h
-        cv2.putText(frame, text, (tx, ty),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        cv2.putText(frame, text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
-        # ===== status color =====
+        # status color
         if note == "MATCH":
-            c = (0, 255, 0)          # green
+            c = (0, 255, 0)
         elif note in ["NO OBJECT", "NO COLOR", "NO SHAPE"]:
-            c = (0, 255, 255)        # yellow
+            c = (0, 255, 255)
         else:
-            c = (0, 0, 255)          # red  (NO MATCH / POSE FAILED / fallback)
+            c = (0, 0, 255)
 
-        cv2.putText(frame, str(note), (20, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, c, 2)
+        cv2.putText(frame, str(note), (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, c, 2)
 
-        # =====================================================================
-        # 1) Yellow: draw ALL candidates that match target (except the picked one)
-        # =====================================================================
-        if fresh is not None:
-            candidates = [
-                d for d in fresh
-                if d.shape == self.target_shape and d.color == self.target_color
-            ]
-
-            # ===== 去重：同一个物体只保留一个 detection =====
-            uniq = []
-            for d in candidates:
-                merged = False
-                for i, u in enumerate(uniq):
-                    if self.same_det(d, u):
-                        # 同一个物体：保留“更好”的那条（circle 用半径更大；cube 用面积更大）
-                        if d.shape == "circle":
-                            if d.radius_px > u.radius_px:
-                                uniq[i] = d
-                        elif d.shape == "cube" and d.bbox and u.bbox:
-                            if d.bbox[2] * d.bbox[3] > u.bbox[2] * u.bbox[3]:
-                                uniq[i] = d
-                        merged = True
-                        break
-                if not merged:
-                    uniq.append(d)
-
-            for d in uniq:
+        # Yellow: draw uniq candidates (same shape/color) except picked one
+        if uniq_candidates is not None:
+            for d in uniq_candidates:
                 if det is not None and self.same_det(d, det):
                     continue
-    
-                # --- draw yellow candidate ---
+
                 if d.shape == "circle" and d.center_uv is not None and d.radius_px > 1.0:
                     cx, cy = int(d.center_uv[0]), int(d.center_uv[1])
                     r = int(d.radius_px)
-                    cv2.circle(frame, (cx, cy), r, (0, 255, 255), 2)   # yellow outer
-                    cv2.circle(frame, (cx, cy), 2, (0, 0, 255), -1)    # small red dot
-
+                    cv2.circle(frame, (cx, cy), r, (0, 255, 255), 2)
+                    cv2.circle(frame, (cx, cy), 2, (0, 0, 255), -1)
                 elif d.shape == "cube" and d.bbox is not None:
                     x, y, w, h = d.bbox
                     cv2.rectangle(frame, (int(x), int(y)),
-                                  (int(x + w), int(y + h)), (0, 255, 255), 2)  # yellow bbox
+                                  (int(x + w), int(y + h)), (0, 255, 255), 2)
 
-        # ======================================================
-        # 2) Green: draw ONLY the selected target (pick_target)
-        # ======================================================
+        # Green: draw picked one
         if det is not None:
             if det.shape == "circle" and det.center_uv is not None and det.radius_px > 1.0:
                 cx, cy = int(det.center_uv[0]), int(det.center_uv[1])
                 r = int(det.radius_px)
-                cv2.circle(frame, (cx, cy), r, (0, 255, 0), 3)   # green outer
-                cv2.circle(frame, (cx, cy), 3, (0, 0, 255), -1)  # red center
-
+                cv2.circle(frame, (cx, cy), r, (0, 255, 0), 3)
+                cv2.circle(frame, (cx, cy), 3, (0, 0, 255), -1)
             elif det.shape == "cube" and det.bbox is not None:
                 x, y, w, h = det.bbox
                 cv2.rectangle(frame, (int(x), int(y)),
-                              (int(x + w), int(y + h)), (0, 255, 0), 3)  # green bbox
+                              (int(x + w), int(y + h)), (0, 255, 0), 3)
+
+        # Optional overlay: show filtered XYZ
+        if self.ema_t is not None:
+            xyz_txt = f"EMA XYZ = [{self.ema_t[0]:.3f}, {self.ema_t[1]:.3f}, {self.ema_t[2]:.3f}] m"
+            cv2.putText(frame, xyz_txt, (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2)
 
         cv2.imshow("TargetObjectDetector", frame)
         cv2.waitKey(1)
 
-
-
-    def draw_axes(self, frame, rvec, tvec):
-
-        L = self.get_parameter("cube_size_m").value * 1.5
-        pts_3d = np.float32([
-            [0, 0, 0],
-            [L, 0, 0],
-            [0, L, 0],
-            [0, 0, L],
-        ]).reshape(-1, 1, 3)
-
-        pts_2d, _ = cv2.projectPoints(pts_3d, rvec, tvec, self.K, self.D)
-        pts = pts_2d.reshape(-1, 2).astype(int)
-
-        o, x, y, z = pts
-        # Helper to convert numpy points to python int tuples for cv2.line
-        # OpenCV handles python ints better than numpy scalars in some versions
-        pt_o = (int(o[0]), int(o[1]))
-        pt_x = (int(x[0]), int(x[1]))
-        pt_y = (int(y[0]), int(y[1]))
-        pt_z = (int(z[0]), int(z[1]))
-
-        cv2.line(frame, pt_o, pt_x, (0, 0, 255), 3)
-        cv2.line(frame, pt_o, pt_y, (0, 255, 0), 3)
-        cv2.line(frame, pt_o, pt_z, (255, 0, 0), 3)
-
     # ============================ utils ============================
 
-    def publish_status_once(self, text):
+    def publish_status_once(self, text: str):
         if text != self.last_status:
             self.pub_status.publish(String(data=text))
             self.last_status = text
 
-     # ============================ calibration ============================
+    # ============================ calibration ============================
 
     def apply_z_linear_calib(self, ps: PoseStamped) -> PoseStamped:
         a = float(self.get_parameter("z_calib_a").value)
@@ -536,13 +619,12 @@ class TargetObjectDetectorNode(Node):
         Y = float(ps.pose.position.y)
         Z = float(ps.pose.position.z)
 
-
         if abs(Z) < 1e-6:
             return ps
 
         Zc = a * Z + b
-
         scale = Zc / Z
+
         ps.pose.position.x = X * scale
         ps.pose.position.y = Y * scale
         ps.pose.position.z = Zc

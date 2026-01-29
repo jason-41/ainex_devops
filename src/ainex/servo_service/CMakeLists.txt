@@ -13,6 +13,13 @@ find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+execute_process(
+  COMMAND "${Python3_EXECUTABLE}" -c "import numpy; print(numpy.get_include())"
+  OUTPUT_VARIABLE PYTHON_NUMPY_INCLUDE_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ChangeServoPositions.msg"
@@ -20,6 +27,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SetJointLock.msg"
   "msg/GetServoPositions.msg"
   "msg/SetPosture.msg"
+  "msg/InstructionAfterLLM.msg"
   "srv/JointLock.srv"
   "srv/ServoTemp.srv"
   "srv/ServoDeviation.srv"

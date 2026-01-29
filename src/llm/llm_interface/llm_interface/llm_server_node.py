@@ -30,6 +30,8 @@ from llm_interface.openai_client import OpenAIChatClient
 from pathlib import Path
 from auth_msgs.msg import AuthState
 from std_msgs.msg import String
+from servo_service.msg import InstructionAfterLLM
+
 import re
 
 
@@ -110,6 +112,44 @@ class LLMServerNode(Node):
 
         self.get_logger().info("Speech interface enabled.")
 
+        # ---- LLM instruction publisher ----
+        self.instruction_pub = self.create_publisher(
+            InstructionAfterLLM,
+            "instruction_after_llm",
+            10
+        )
+
+        self.get_logger().info("Instruction publisher ready at /instruction_after_llm")
+
+    def publish_instruction(self, fields: dict):
+        """
+        Publish the extracted task as an InstructionAfterLLM message.
+
+        Inputs:
+        - fields (dict): Parsed task fields
+
+        Outputs:
+        - None
+        """
+        msg = InstructionAfterLLM()
+
+        msg.object_color = fields["object_color"]
+        msg.object_shape = fields["object_shape"]
+        msg.pickup_location = int(fields["pickup_location"])
+        msg.destination_location = int(fields["destination_location"])
+
+        self.instruction_pub.publish(msg)
+
+        self.get_logger().info(
+            "[INSTRUCTION PUBLISHED] "
+            f"{msg.object_color}, {msg.object_shape}, "
+            f"{msg.pickup_location} -> {msg.destination_location}"
+        )
+
+
+
+
+
     def save_final_task(self, text: str):
         """
         Save the final structured task description to a file.
@@ -151,10 +191,10 @@ class LLMServerNode(Node):
         - bool: True if all required fields are present, otherwise False
         """
         required_fields = [
-            "Object_color:",
-            "Object_shape:",
-            "Pickup_location:",
-            "Destination_location:"
+            "object_color:",
+            "object_shape:",
+            "pickup_location:",
+            "destination_location:"
         ]
         return all(field in text for field in required_fields)
 
@@ -175,10 +215,10 @@ class LLMServerNode(Node):
         """
 
         patterns = {
-            "Object_color": r"Object_color:\s*(\w+)",
-            "Object_shape": r"Object_shape:\s*(\w+)",
-            "Pickup_location": r"Pickup_location:\s*(\w+)",
-            "Destination_location": r"Destination_location:\s*(\w+)",
+            "object_color": r"object_color:\s*(\w+)",
+            "object_shape": r"object_shape:\s*(\w+)",
+            "pickup_location": r"pickup_location:\s*(\w+)",
+            "destination_location": r"destination_location:\s*(\w+)",
         }
 
         result = {}
@@ -206,10 +246,10 @@ class LLMServerNode(Node):
         - str: Clean task description string
         """
         return (
-            f"Object_color: {fields['Object_color']}\n"
-            f"Object_shape: {fields['Object_shape']}\n"
-            f"Pickup_location: {fields['Pickup_location']}\n"
-            f"Destination_location: {fields['Destination_location']}"
+            f"object_color: {fields['object_color']}\n"
+            f"object_shape: {fields['object_shape']}\n"
+            f"pickup_location: {fields['pickup_location']}\n"
+            f"destination_location: {fields['destination_location']}"
         )
 
     def auth_callback(self, msg: AuthState):
@@ -310,6 +350,7 @@ class LLMServerNode(Node):
         if fields:
             clean_task = self.build_clean_task_text(fields)
             self.save_final_task(clean_task)
+            self.publish_instruction(fields)
 
         self.get_logger().info(f"[LLM Reply] {reply}")
 
@@ -380,6 +421,7 @@ class LLMServerNode(Node):
         if fields:
             clean_task = self.build_clean_task_text(fields)
             self.save_final_task(clean_task)
+            self.publish_instruction(fields)
 
         res.assistant_text = reply
         return res
@@ -409,6 +451,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 

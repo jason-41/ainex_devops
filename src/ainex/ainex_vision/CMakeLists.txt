@@ -9,6 +9,14 @@ find_package(std_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+execute_process(
+  COMMAND "${Python3_EXECUTABLE}" -c "import numpy; print(numpy.get_include())"
+  OUTPUT_VARIABLE PYTHON_NUMPY_INCLUDE_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
+
 # 2. 生成 msg 接口
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FaceBoundingBox.msg"
@@ -22,6 +30,13 @@ install(
     ainex_vision/face_detection_node.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME face_detection_node
+)
+
+install(
+  PROGRAMS
+    ainex_vision/camera_sub_backup.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME camera_sub_backup
 )
 
 install(

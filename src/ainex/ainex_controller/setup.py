@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'ainex_hands_control_node = ainex_controller.ainex_hands_control_node:main',
             'ainex_walk_to_aruco_node = ainex_controller.ainex_walk_to_aruco_node:main',
+            'monitor_real_robot = ainex_controller.monitor_real_robot:main',
         ],
     },
 )

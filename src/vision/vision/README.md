@@ -5,7 +5,7 @@ source /opt/ros/jazzy/setup.bash
 
 source groupE_venv/bin/activate
 
-colcon build --symlink-install --packages-select vision
+colcon build --symlink-install
 source install/setup.bash
 ```
 
@@ -27,7 +27,7 @@ source install/setup.bash
 ros2 launch vision marker_detection.launch.py
 ros2 launch vision object_detection.launch.py
 
-#Run Nodes (console_scripts)
+#Run Nodes (console_scripts, usually not necessary)
 ros2 run vision undistortion
 ros2 run vision aruco_detector_node
 ros2 run vision object_detector

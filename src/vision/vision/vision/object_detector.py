@@ -293,11 +293,11 @@ class ObjectDetectorNode(Node):
         mask_b = cv2.bitwise_and(self.get_blue_mask(hsv), roi_mask)
         mask_p = cv2.bitwise_and(self.get_purple_mask(hsv), roi_mask)
 
-        cv2.imshow("RED Mask", mask_r)
-        cv2.imshow("GREEN Mask", mask_g)
-        cv2.imshow("BLUE Mask", mask_b)
-        cv2.imshow("PURPLE Mask", mask_p)
-        cv2.imshow("ROI Mask", roi_mask)
+        # cv2.imshow("RED Mask", mask_r)
+        # cv2.imshow("GREEN Mask", mask_g)
+        # cv2.imshow("BLUE Mask", mask_b)
+        # cv2.imshow("PURPLE Mask", mask_p)
+        # cv2.imshow("ROI Mask", roi_mask)
 
         # ========== shape detection ==========
         win_circle = frame.copy()
