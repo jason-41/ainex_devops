@@ -14,7 +14,7 @@ class TurnAroundNode(Node):
     def __init__(self):
         super().__init__("turn_around_node")
 
-        self.declare_parameter("speed", 5)
+        self.declare_parameter("speed", 0.05)
         self.declare_parameter("degrees", 180.0)
         self.declare_parameter("sim", True)
 
@@ -26,7 +26,7 @@ class TurnAroundNode(Node):
         self.posture_pub = self.create_publisher(SetPosture, 'Set_Posture', 10)
 
         # Allow some time for connection
-        time.sleep(0.5)
+        time.sleep(0.3)
 
     def reset_posture(self):
         self.get_logger().info("Resetting posture before turning...")
@@ -48,14 +48,33 @@ class TurnAroundNode(Node):
         # 1. Reset Posture
         self.reset_posture()
 
+        # 1.5 Move Backwards (Safety buffer)
+        self.get_logger().info("Safety: Moving backwards for 10s...")
+        back_msg = Twist()
+        back_msg.linear.x = -0.02
+        back_start = time.time()
+        while rclpy.ok():
+            e = time.time() - back_start
+            if e > 10.0:
+                break
+            print(f"Backing up... {e:.1f}/10.0s", end='\n')
+            self.cmd_vel_pub.publish(back_msg)
+            time.sleep(0.05)
+            rclpy.spin_once(self, timeout_sec=0)
+        self.stop()
+        print()
+
         # 2. Turn
         # Gait startup compensation: Legged robots take time to start moving.
         # We add a small buffer or rely on a tuning factor.
         # Increasing duration slightly to compensate for startup lag.
-        startup_compensation = 1.0  # seconds estimated for gait init
+        startup_compensation = 0.0  # seconds estimated for gait init
 
         target_rad = math.radians(abs(self.target_degrees))
         speed = abs(self.speed)
+        if speed > 0.05:
+            speed = 0.05
+            self.get_logger().info("Turning speed too high. Clamped to 0.05")
 
         # Direction
         if self.target_degrees < 0:
@@ -67,7 +86,7 @@ class TurnAroundNode(Node):
         # Total duration strategy:
         # Simple open loop: just add startup time? Or assume effective motion starts late?
         # A simple heuristic: run for calculated time + compensation
-        total_duration = motion_duration + startup_compensation
+        total_duration = motion_duration + startup_compensation - 20
         # total_duration = 60
 
         self.get_logger().info(
@@ -90,6 +109,10 @@ class TurnAroundNode(Node):
             elapsed = time.time() - start_time
             if elapsed > total_duration:
                 break
+            
+            # Print elapsed time (every ~0.5s or simple print every loop)
+            # Using carriage return \r to overwrite line for cleaner output
+            print(f"Turning... Elapsed: {elapsed:.2f}s / {total_duration:.2f}s", end='\n')
 
             self.cmd_vel_pub.publish(msg)
 
@@ -98,6 +121,8 @@ class TurnAroundNode(Node):
             # to prevent flooding the network if there are no callbacks.
             time.sleep(0.05)
             rclpy.spin_once(self, timeout_sec=0)
+
+        print() # New line after loop finishes
 
         # 3. Stop
         self.stop()
