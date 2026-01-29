@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # needs to be tested on real robot
+# could scale to any angle values
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
@@ -13,7 +14,7 @@ class TurnAroundNode(Node):
     def __init__(self):
         super().__init__("turn_around_node")
 
-        self.declare_parameter("speed", 2)
+        self.declare_parameter("speed", 5)
         self.declare_parameter("degrees", 180.0)
         self.declare_parameter("sim", True)
 
@@ -67,7 +68,7 @@ class TurnAroundNode(Node):
         # Simple open loop: just add startup time? Or assume effective motion starts late?
         # A simple heuristic: run for calculated time + compensation
         total_duration = motion_duration + startup_compensation
-        total_duration = 60
+        # total_duration = 60
 
         self.get_logger().info(
             f"Turning {self.target_degrees} degrees at {speed:.2f} rad/s.")
