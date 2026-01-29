@@ -114,14 +114,22 @@ class AinexRobot():
         """
         q_cmd = q_cmd.copy()
 
-        # Adjust for real robot differences
-        # l/r_sho_pitch has flipped direction in the real robot
+        # Adjust for real robot differences (Matching read_joint_positions_from_robot logic)
+        
+        # l/r_sho_pitch
         q_cmd[self.robot_model.get_joint_id('l_sho_pitch')] *= -1.0
-        # This was a bug before! should be +1.0
-        q_cmd[self.robot_model.get_joint_id('r_sho_pitch')] *= 1.0
-        # l/r_sho_roll has an offset in the real robot
-        q_cmd[self.robot_model.get_joint_id('r_sho_roll')] -= 1.4
-        q_cmd[self.robot_model.get_joint_id('l_sho_roll')] += 1.4
+        # q_cmd[self.robot_model.get_joint_id('r_sho_pitch')] stays as is
+        
+        # head_pan
+        q_cmd[self.robot_model.get_joint_id('head_pan')] *= -1.0
+
+        # r_sho_roll: Inverse of (-q_real + 1.51) -> q_real = 1.51 - q_model
+        r_roll_id = self.robot_model.get_joint_id('r_sho_roll')
+        q_cmd[r_roll_id] = 1.51 - q_cmd[r_roll_id]
+
+        # l_sho_roll: Inverse of (-q_real - 1.51) -> q_real = -1.51 - q_model
+        l_roll_id = self.robot_model.get_joint_id('l_sho_roll')
+        q_cmd[l_roll_id] = -1.51 - q_cmd[l_roll_id]
 
         self.joint_controller.setJointPositions(
             self.joint_names, q_cmd.tolist(), dt, unit="rad")
@@ -133,11 +141,15 @@ class AinexRobot():
 
         # Adjust for real robot differences
         # l/r_sho_pitch has flipped direction in the real robot
-        q_real[self.robot_model.get_joint_id('l_sho_pitch')] *= -1.0
-        q_real[self.robot_model.get_joint_id('r_sho_pitch')] *= -1.0
-        # l/r_sho_roll has an offset in the real robot
-        q_real[self.robot_model.get_joint_id('r_sho_roll')] += 1.4
-        q_real[self.robot_model.get_joint_id('l_sho_roll')] -= 1.4
+        q_real[self.robot_model.get_joint_id('l_sho_pitch')] *= -1.0 
+        q_real[self.robot_model.get_joint_id('r_sho_pitch')] +=   0      #3.2=360 degree
+        
+        q_real[self.robot_model.get_joint_id('r_sho_roll')] *= -1.0
+        q_real[self.robot_model.get_joint_id('l_sho_roll')] *= -1.0
+        q_real[self.robot_model.get_joint_id('r_sho_roll')] += 1.51
+        q_real[self.robot_model.get_joint_id('l_sho_roll')] -= 1.51
+
+        q_real[self.robot_model.get_joint_id('head_pan')] *= -1
 
         return q_real
 

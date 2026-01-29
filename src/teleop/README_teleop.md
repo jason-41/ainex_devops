@@ -11,6 +11,11 @@ deactivate
 ```
 
 # Node Run:
+## !!!!!!!!!!!!!!!!! Before using any walking functions!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  :
+```bash
+ros2 service call /activate_walking std_srvs/srv/Empty {}
+```
+
 ## 1. Terminal:
 ```bash
 # Don't activate GUI

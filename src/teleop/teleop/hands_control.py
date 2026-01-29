@@ -273,10 +273,10 @@ def main():
         robot_model = AiNexModel(node, urdf_path)
         ainex_robot = AinexRobot(node, robot_model, dt, sim=sim)
 
-        # Initial posture (same as your working Exercise 1)
+        # Initial posture (same as working Exercise 1)
         q_init = np.zeros(robot_model.model.nq)
-        q_init[robot_model.get_joint_id('r_sho_roll')] = 1.4
-        q_init[robot_model.get_joint_id('l_sho_roll')] = -1.4
+        q_init[robot_model.get_joint_id('r_sho_roll')] = 1.51
+        q_init[robot_model.get_joint_id('l_sho_roll')] = -1.51
         q_init[robot_model.get_joint_id('r_el_yaw')] = 1.58
         q_init[robot_model.get_joint_id('l_el_yaw')] = -1.58
         ainex_robot.move_to_initial_position(q_init)
