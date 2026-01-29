@@ -36,7 +36,8 @@ class HandController():
         self.spline_duration = 0.0
         self.start_time = None
 
-        self.w_threshold = 5e-4  # manipulability threshold
+        # self.w_threshold = 5e-4  # manipulability threshold
+        self.w_threshold = 1e-5  # Lowered threshold for small Ainex robot
         
         # Add velocity limits
         self.joint_vel_limit = np.array([2.0, 2.0, 2.0, 2.0])  # Joint velocity limits (rad/s)
@@ -194,7 +195,9 @@ class HandController():
         w = np.sqrt(np.linalg.det(JJT))
         
         if w < self.w_threshold:
-            self.node.get_logger().warn(f"{self.arm_side} arm near singularity (w={w:.6f}), stopping motion")
+            # Throttle the warning to avoid spamming
+            # self.node.get_logger().warn(f"{self.arm_side} arm near singularity (w={w:.6f}), stopping motion")
+            print(f"[WARN] {self.arm_side} arm near singularity (w={w:.6f}), stopping motion")
             u = np.zeros_like(u)
 
         return u

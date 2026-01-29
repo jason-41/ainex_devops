@@ -122,6 +122,9 @@ class AinexRobot():
         
         # head_pan
         q_cmd[self.robot_model.get_joint_id('head_pan')] *= -1.0
+        
+        # l_el_pitch
+        q_cmd[self.robot_model.get_joint_id('l_el_pitch')] *= -1.0
 
         # r_sho_roll: Inverse of (-q_real + 1.51) -> q_real = 1.51 - q_model
         r_roll_id = self.robot_model.get_joint_id('r_sho_roll')
@@ -149,6 +152,8 @@ class AinexRobot():
         q_real[self.robot_model.get_joint_id('r_sho_roll')] += 1.51
         q_real[self.robot_model.get_joint_id('l_sho_roll')] -= 1.51
 
+
+        q_real[self.robot_model.get_joint_id('l_el_pitch')] *= -1.0
         q_real[self.robot_model.get_joint_id('head_pan')] *= -1
 
         return q_real

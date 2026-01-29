@@ -22,27 +22,24 @@ ros2 service call /activate_walking std_srvs/srv/Empty {}
 ros2 launch ainex_description display.launch.py gui:=false
 ```
 
-## 2. Terminal
-For test only:
-```bash
-teleop hands_control
-```
 ### or(if run on the real robot):
 ```bash
 ros2 run teleop hands_control --ros-args -p mode:=1 -p sim:=False
 ```
 For Exercise 2 (original tutorial 6) only:
 ```bash
-ros2 run ainex_vision aruco_detection_node
-ros2 run teleop hands_control --ros-args -p mode:=2 -p sim:=True
+
 ```
 
-## 3. New Teleop Nodes (Updates 2026-01)
+## 2. New Teleop Nodes (Updates 2026-01)
 
-### Turn Around 180 degrees
-Rotates the robot by a specified degree.
+### Turn Around (with Safety Backup)
+First moves the robot backward for 10 seconds to ensure clearance, then rotates by the specified degree.
 ```bash
-# Rotate 180 deg
+# Rotate 180 degrees (Default)
+ros2 run teleop turn_around
+
+# Specific angle:
 ros2 run teleop turn_around --ros-args -p degrees:=180.0
 ```
 
@@ -60,6 +57,26 @@ ros2 run teleop crouch --ros-args -p action:=crouch
 
 # Stand Up
 ros2 run teleop crouch --ros-args -p action:=stand
+```
+
+### Hands Control (Arm Movement & Tracking)
+**Note:** Verify joint torque is enabled (`/Lock_All_Joints`). The node attempts to lock joints automatically on real robot mode.
+
+**Mode 1: Kinematics Test** (Default)
+Performs a relative movement test (approx. 6cm trajectory) to verify arm kinematics.
+- Default is Real Robot execution (`sim:=False`).
+```bash
+ros2 run teleop hands_control
+```
+
+**Mode 2: Aruco Tracking / Reaching**
+Tracks an Aruco marker detected by the vision system.
+```bash
+# 1. Start Vision
+ros2 launch ainex_vision object_detection.launch.py
+
+# 2. Start Hands Control (Tracking Mode)
+ros2 run teleop hands_control --ros-args -p mode:=2
 ```
 
 ### if you want to reset the robot to the initial position:
