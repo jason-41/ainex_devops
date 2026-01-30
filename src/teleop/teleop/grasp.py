@@ -47,11 +47,13 @@ class AinexGraspNode(Node):
         # ----------------------------
         # PARAMETERS
         # ----------------------------
-        self.declare_parameter("sim", False)  # False on real robot, True for local sim testing
+        self.declare_parameter("sim", False)
         self.declare_parameter("use_camera", True)
-        self.declare_parameter("pose_topic", "/cube_pose")
-        self.declare_parameter("lock_target_once", True)
-        self.declare_parameter("camera_frame_fallback", "camera_optical_link")
+
+        # IMPORTANT: match hands_control topic by default
+        self.declare_parameter("pose_topic", "detected_object_pose")
+
+        self.declare_parameter("lock_target_once", False)
 
         # Hardcoded pose in CAMERA frame when use_camera:=false
         self.declare_parameter("hardcoded_cam_xyz", [0.0, 0.0, 0.05])
@@ -60,25 +62,26 @@ class AinexGraspNode(Node):
         # Grasp offsets (position-only), in BASE frame after transform
         self.declare_parameter("pre_x_off", 0.02)
         self.declare_parameter("pre_z_off", 0.015)
-        self.declare_parameter("approach_x_off", 0.01)
+        self.declare_parameter("approach_x_off", 0.0)
         self.declare_parameter("lift_z", 0.10)
 
-        # Speeds / durations
-        self.declare_parameter("pre_duration", 3.0)
-        self.declare_parameter("approach_duration", 3.0)
-        self.declare_parameter("lift_duration", 2.0)
+        # Durations
+        self.declare_parameter("pre_duration", 5.0)
+        self.declare_parameter("approach_duration", 5.0)
+        self.declare_parameter("lift_duration", 3.0)
 
-        # Control timing (IMPORTANT on real robot)
-        self.declare_parameter("dt_min", 0.01)   # 100 Hz clamp
-        self.declare_parameter("dt_max", 0.05)   # 20 Hz clamp
-        self.declare_parameter("feedback_hz", 1.0)  # throttle robot joint read (0 to disable)
+        # Real-robot control loop period (fixed)
+        self.declare_parameter("dt_cmd", 0.01)          # 100 Hz fixed command loop
+        self.declare_parameter("feedback_hz", 0.0)      # default OFF
 
-        # Gripper behavior (velocity command)
-        self.declare_parameter("close_fraction", 0.70)
+        # Gripper
+        self.declare_parameter("close_fraction", 0.4)
         self.declare_parameter("gripper_kp", 6.0)
         self.declare_parameter("gripper_vel_max", 2.0)
         self.declare_parameter("gripper_eps", 0.02)
         self.declare_parameter("squeeze_time", 0.5)
+
+        self.declare_parameter("phase_settle_s", 0.25)
 
         # ----------------------------
         # LOAD MODEL + ROBOT
@@ -88,40 +91,53 @@ class AinexGraspNode(Node):
         self.robot_model = AiNexModel(self, urdf_path)
 
         self.sim = bool(self.get_parameter("sim").value)
+        dt_cmd = float(self.get_parameter("dt_cmd").value)
 
-        # AinexRobot still needs a nominal dt for internal init; we will pass real dt each update()
-        nominal_dt = float(self.get_parameter("dt_max").value)
-        self.robot = AinexRobot(self, self.robot_model, nominal_dt, sim=self.sim)
+        self.robot = AinexRobot(self, self.robot_model, dt_cmd, sim=self.sim)
 
-        # Home posture
-        q_init = np.zeros(self.robot_model.model.nq)
-        q_init[self.robot_model.get_joint_id("r_sho_roll")] = 1.4
-        q_init[self.robot_model.get_joint_id("l_sho_roll")] = -1.4
-        q_init[self.robot_model.get_joint_id("r_el_yaw")] = 1.58
-        q_init[self.robot_model.get_joint_id("l_el_yaw")] = -1.58
+        # ----------------------------
+        # Starting posture (exactly as you requested)
+        # ----------------------------
+        q_init = np.array([
+            0.06702064, -0.47752208, -0.01675516,  0.00418879,
+            -0.87126839,  2.33315611,  1.47864294,  0.03769911,
+            -0.29740411, -1.24191744,  0.02932153, -1.65457213,
+            0.0,        -0.01675516,  0.00837758,  0.83775806,
+            -2.22843647, -1.41162229, -0.03769911, -0.26808256,
+            1.36758114, THe  0.10890855,  1.68389368,  0.74979347
+        ], dtype=float)
+        self.get_logger().info(f"initial pose {q_init}")
         self.robot.move_to_initial_position(q_init)
         time.sleep(1.0)
 
         self.hand_ctrl = None
 
         # ----------------------------
-        # CAMERA FRAME RESOLUTION (Pinocchio)
+        # MATCH hands_control camera chain:
+        # base -> head_tilt_link -> (fixed offset) -> camera_link -> (fixed rot) -> camera_optical_link
         # ----------------------------
-        self.cam_frame_id = None
-        self.cam_frame_name = None
-        for name in ["camera_optical_link", "camera_link"]:
-            fid = self.robot_model.model.getFrameId(name)
-            if fid < self.robot_model.model.nframes:
-                self.cam_frame_id = fid
-                self.cam_frame_name = name
-                self.get_logger().info(f"Using camera frame '{self.cam_frame_name}' (frame id={self.cam_frame_id})")
-                break
+        try:
+            self.head_tilt_id = self.robot_model.model.getFrameId("head_tilt_link")
+            if self.head_tilt_id >= self.robot_model.model.nframes:
+                raise RuntimeError("head_tilt_link frame id out of range")
+        except Exception as e:
+            raise RuntimeError(f"Could not find 'head_tilt_link' in Pinocchio model: {e}")
 
-        if self.cam_frame_id is None:
-            self.get_logger().warn(
-                "Could not find 'camera_optical_link' or 'camera_link' in URDF. "
-                "Will still run, but camera->base transform will fail unless msg.header.frame_id matches a frame."
-            )
+        # Same offset as hands_control
+        offset_pos = np.array([0.038068, 0.018573, 0.016398], dtype=float)
+        self.T_tilt_cam = pin.SE3(np.eye(3), offset_pos)
+
+        # Same camera_link -> camera_optical_link rotation as hands_control
+        R_clink_opt = np.array([
+            [0.0,  0.0, 1.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0]
+        ], dtype=float)
+        self.T_clink_opt = pin.SE3(R_clink_opt, np.zeros(3))
+
+        self.get_logger().info(
+            f"Using camera chain via head_tilt_link (id={self.head_tilt_id}) + fixed offset + fixed optical rotation."
+        )
 
         # ----------------------------
         # TARGET POSE INPUT
@@ -136,9 +152,9 @@ class AinexGraspNode(Node):
 
         if self.use_camera:
             self.create_subscription(PoseStamped, self.pose_topic, self._pose_cb, 10)
-            self.get_logger().info(f"Listening for object pose on {self.pose_topic} (PoseStamped, camera frame).")
+            self.get_logger().info(f"Listening for object pose on {self.pose_topic} (PoseStamped, expected camera_optical_link).")
         else:
-            self.get_logger().warn("use_camera:=false -> using hardcoded pose in camera frame.")
+            self.get_logger().warn("use_camera:=false -> using hardcoded pose in camera_optical_link frame.")
 
         # ----------------------------
         # GRIPPER INDICES (both sides)
@@ -160,77 +176,69 @@ class AinexGraspNode(Node):
         self.gripper_eps = float(self.get_parameter("gripper_eps").value)
         self.squeeze_time = float(self.get_parameter("squeeze_time").value)
 
-        # Timing helpers (wall time to avoid sim_time pitfalls + service stalls)
-        self._t_last = time.monotonic()
         self._t_last_feedback = 0.0
-
-        # ----------------------------
-        # RUN STATE MACHINE (blocking)
-        # ----------------------------
+        
         self.run()
 
     def _pose_cb(self, msg: PoseStamped):
         self.latest_pose_msg = msg
         self.latest_pose_t = time.time()
 
-    def _get_T_b_c(self, frame_name_hint: str = None) -> pin.SE3:
-        if frame_name_hint:
-            fid = self.robot_model.model.getFrameId(frame_name_hint)
-            if fid < self.robot_model.model.nframes:
-                return self.robot_model.data.oMf[fid]
-        if self.cam_frame_id is None:
-            raise RuntimeError("No camera frame in model and frame_name_hint not found.")
-        return self.robot_model.data.oMf[self.cam_frame_id]
+    def _get_T_b_opt(self) -> pin.SE3:
+        """
+        EXACTLY like hands_control:
+          T_b_opt = T_b_head * T_tilt_cam * T_clink_opt
+        """
+        T_b_head = self.robot_model.data.oMf[self.head_tilt_id]
+        T_b_clink = T_b_head * self.T_tilt_cam
+        T_b_opt = T_b_clink * self.T_clink_opt
+        return T_b_opt
 
     def _get_object_T_b(self) -> pin.SE3:
         if self.lock_target_once and self.locked_T_b_obj is not None:
             return self.locked_T_b_obj
 
+        # T_opt_obj (camera_optical_link -> object)
         if self.use_camera:
             if self.latest_pose_msg is None:
                 raise RuntimeError("No pose received yet.")
             if self.latest_pose_t is None or (time.time() - self.latest_pose_t) > 1.0:
                 raise RuntimeError("Pose is stale (>1.0s).")
 
-            T_c_obj = pose_to_se3_from_pose_msg(self.latest_pose_msg.pose)
-            cam_frame_hint = self.latest_pose_msg.header.frame_id if self.latest_pose_msg.header.frame_id else None
+            # We assume the incoming PoseStamped is in camera_optical_link, same as hands_control.
+            # If frame_id is present and differs, we warn (but do not guess transforms).
+            fid = self.latest_pose_msg.header.frame_id.strip() if self.latest_pose_msg.header.frame_id else ""
+            if fid and fid != "camera_optical_link":
+                self.get_logger().warn(f"Pose frame_id='{fid}' (expected 'camera_optical_link'). Using it as optical anyway.")
+
+            T_opt_obj = pose_to_se3_from_pose_msg(self.latest_pose_msg.pose)
+
         else:
             xyz = self.get_parameter("hardcoded_cam_xyz").value
             rpy = self.get_parameter("hardcoded_cam_rpy").value
             t = np.array([xyz[0], xyz[1], xyz[2]], dtype=float)
             Rot = R.from_euler("xyz", [rpy[0], rpy[1], rpy[2]]).as_matrix()
-            T_c_obj = pin.SE3(Rot, t)
-            cam_frame_hint = str(self.get_parameter("camera_frame_fallback").value)
+            T_opt_obj = pin.SE3(Rot, t)
 
-        T_b_c = self._get_T_b_c(cam_frame_hint)
-        T_b_obj = T_b_c * T_c_obj
+        # base_link -> camera_optical_link (hands_control chain)
+        T_b_opt = self._get_T_b_opt()
+
+        # base_link -> object
+        T_b_obj = T_b_opt * T_opt_obj
 
         if self.lock_target_once:
             self.locked_T_b_obj = T_b_obj
 
+        # Debug TF
         try:
-            send_tf(self.br, self, "base_link", "camera_frame_used", pin.SE3(T_b_c.rotation, T_b_c.translation))
+            send_tf(self.br, self, "base_link", "camera_optical_used", pin.SE3(T_b_opt.rotation, T_b_opt.translation))
             send_tf(self.br, self, "base_link", "object_in_base", pin.SE3(T_b_obj.rotation, T_b_obj.translation))
         except Exception:
             pass
 
         return T_b_obj
 
-    def _compute_dt(self) -> float:
-        dt_min = float(self.get_parameter("dt_min").value)
-        dt_max = float(self.get_parameter("dt_max").value)
-
-        now = time.monotonic()
-        dt = now - self._t_last
-        self._t_last = now
-        dt = max(dt_min, min(dt, dt_max))
-        return dt
-
     def _maybe_refresh_from_robot(self):
-        """
-        Throttled joint feedback read (service call). This can block, so do it rarely.
-        Set feedback_hz:=0 to disable.
-        """
         if self.sim:
             return
         if not hasattr(self.robot, "read_joint_positions_from_robot"):
@@ -261,16 +269,18 @@ class AinexGraspNode(Node):
             vg = 0.0
         self.robot.v[self.vg_idx] = vg
 
+    def _sleep_to_rate(self, t_cycle_start: float, dt_cmd: float):
+        remaining = dt_cmd - (time.monotonic() - t_cycle_start)
+        if remaining > 0.0:
+            time.sleep(remaining)
+
     def run(self):
-        # ----------------------------
         # WAIT FOR TARGET
-        # ----------------------------
         start_wait = time.time()
         T_b_obj = None
         while rclpy.ok():
             rclpy.spin_once(self, timeout_sec=0.1)
             self._maybe_refresh_from_robot()
-
             try:
                 T_b_obj = self._get_object_T_b()
                 break
@@ -281,25 +291,21 @@ class AinexGraspNode(Node):
         obj_pos = T_b_obj.translation.copy()
         self.get_logger().info(f"[TARGET] object_base={obj_pos.tolist()}")
 
-        # ----------------------------
         # ARM SELECTION
-        # ----------------------------
         arm_side = "left" if float(obj_pos[1]) > 0.0 else "right"
-        # asymteric left hand gripper
-        if (arm_side=="left"):
-            self.gripper_open_q, self.gripper_close_q = self.gripper_close_q, self.gripper_open_q
         self.get_logger().info(f"[ARM_SELECT] y={float(obj_pos[1]):.3f} -> arm_side={arm_side}")
 
         self.hand_ctrl = HandController(self, self.robot_model, arm_side=arm_side)
-        #self.hand_ctrl.set_yaw_control(False)
+        # Set a base speed limit
+        self.hand_ctrl.linear_vel_limit = 0.04
 
+        # GRIPPER CONFIG
         gripper_joint_name = "l_gripper" if arm_side == "left" else "r_gripper"
         self.qg_idx, self.vg_idx = self.gripper_indices[gripper_joint_name]
 
         q_lo = float(self.robot_model.model.lowerPositionLimit[self.qg_idx])
         q_hi = float(self.robot_model.model.upperPositionLimit[self.qg_idx])
         margin = 0.15 * (q_hi - q_lo)
-
         self.gripper_open_q = q_hi - margin
         close_fraction = float(self.get_parameter("close_fraction").value)
         self.gripper_close_q = self.gripper_open_q + close_fraction * ((q_lo + margin) - self.gripper_open_q)
@@ -309,9 +315,7 @@ class AinexGraspNode(Node):
             f"open={self.gripper_open_q:.3f} close={self.gripper_close_q:.3f}"
         )
 
-        # ----------------------------
-        # BUILD POSITION TARGETS (POSITION ONLY)
-        # ----------------------------
+        # BUILD TARGETS
         pre_x = float(self.get_parameter("pre_x_off").value)
         pre_z = float(self.get_parameter("pre_z_off").value)
         approach_x = float(self.get_parameter("approach_x_off").value)
@@ -332,67 +336,85 @@ class AinexGraspNode(Node):
         self.get_logger().info(f"[APPROACH] target={approach_pos.tolist()}")
         self.get_logger().info(f"[LIFT] target={lift_pos.tolist()}")
 
-        # ----------------------------
-        # PHASE 1: PREGRASP (open gripper)
-        # ----------------------------
-        #self.hand_ctrl.set_yaw_control(False)
-        self.hand_ctrl.set_target_pose(
-            T_pre,
-            duration=float(self.get_parameter("pre_duration").value),
-            type="abs",
-        )
+        self.hand_ctrl.set_target_pose(T_pre, duration=float(self.get_parameter("pre_duration").value), type="abs")
 
         phase = "PREGRASP"
         t0 = time.time()
         t_s = None
 
-        # (optional) approach speed settings
         approach_lin_limit = 0.02
         lift_lin_limit = 0.08
 
-        # loop debug throttling
+        dt_cmd = float(self.get_parameter("dt_cmd").value)
+        phase_settle_s = float(self.get_parameter("phase_settle_s").value)
+
         dbg_t = time.monotonic()
 
         while rclpy.ok():
-            dt = self._compute_dt()
-            rclpy.spin_once(self, timeout_sec=0.0)  # do not tie loop to dt; we already have dt from wall time
+            t_cycle_start = time.monotonic()
+            rclpy.spin_once(self, timeout_sec=0.0)
             self._maybe_refresh_from_robot()
+
+            # --- DYNAMIC TRACKING UPDATES ---
+            if phase in ("PREGRASP", "APPROACH"):
+                try:
+                    self.locked_T_b_obj = None  # Force fresh pose
+                    T_current_obj = self._get_object_T_b()
+                    current_obj_pos = T_current_obj.translation.copy()
+
+                    # Recalculate targets based on fresh object position
+                    # We keep the orientation R_hand fixed to avoid jitter
+                    pre_pos_new = current_obj_pos + np.array([-pre_x, 0.0, pre_z], dtype=float)
+                    approach_pos_new = current_obj_pos + np.array([-approach_x, 0.0, 0.0], dtype=float)
+                    
+                    T_pre.translation = pre_pos_new
+                    T_approach.translation = approach_pos_new
+                    
+                except Exception:
+                    pass
 
             if phase in ("PREGRASP", "APPROACH"):
                 self._drive_gripper(self.gripper_open_q)
 
             if phase == "PREGRASP":
-                v_hand = self.hand_ctrl.update(dt)
-                if arm_side == "right":
-                    self.robot.update(None, v_hand, dt)
-                else:
-                    self.robot.update(v_hand, None, dt)
+                # VISUAL SERVOING: Update target continuously with short duration
+                self.hand_ctrl.set_target_pose(T_pre, duration=0.2, type="abs")
 
-                if self.hand_ctrl.is_finished():
+                v_hand = self.hand_ctrl.update(dt_cmd)
+                if arm_side == "right":
+                    self.robot.update(None, v_hand, dt_cmd)
+                else:
+                    self.robot.update(v_hand, None, dt_cmd)
+
+                # Check completion by DISTANCE, not time
+                dist_to_target = np.linalg.norm(self.hand_ctrl.x_cur.translation - T_pre.translation)
+                if dist_to_target < 0.015:  # 1.5cm threshold
+                    time.sleep(phase_settle_s)
                     phase = "APPROACH"
                     self.get_logger().info("Phase: APPROACH")
                     self.hand_ctrl.linear_vel_limit = approach_lin_limit
-                    self.hand_ctrl.set_target_pose(
-                        T_approach,
-                        duration=float(self.get_parameter("approach_duration").value),
-                        type="abs",
-                    )
-
+                    # Don't need to set long duration here, loop will update it
+ 
             elif phase == "APPROACH":
-                v_hand = self.hand_ctrl.update(dt)
-                if arm_side == "right":
-                    self.robot.update(None, v_hand, dt)
-                else:
-                    self.robot.update(v_hand, None, dt)
+                # VISUAL SERVOING: Update target continuously with short duration
+                self.hand_ctrl.set_target_pose(T_approach, duration=0.2, type="abs")
 
-                if self.hand_ctrl.is_finished():
+                v_hand = self.hand_ctrl.update(dt_cmd)
+                if arm_side == "right":
+                    self.robot.update(None, v_hand, dt_cmd)
+                else:
+                    self.robot.update(v_hand, None, dt_cmd)
+
+                # Check completion by DISTANCE
+                dist_to_target = np.linalg.norm(self.hand_ctrl.x_cur.translation - T_approach.translation)
+                if dist_to_target < 0.01:  # 1cm threshold
+                    time.sleep(phase_settle_s)
                     phase = "CLOSE"
                     self.get_logger().info("Phase: CLOSE")
 
             elif phase == "CLOSE":
-                # Freeze arms; drive gripper closed
                 self._drive_gripper(self.gripper_close_q)
-                self.robot.update(np.zeros(4), np.zeros(4), dt)
+                self.robot.update(np.zeros(4), np.zeros(4), dt_cmd)
 
                 if abs(float(self.robot.q[self.qg_idx]) - float(self.gripper_close_q)) < self.gripper_eps:
                     phase = "SQUEEZE"
@@ -401,39 +423,45 @@ class AinexGraspNode(Node):
 
             elif phase == "SQUEEZE":
                 self._drive_gripper(self.gripper_close_q)
-                self.robot.update(np.zeros(4), np.zeros(4), dt)
+                self.robot.update(np.zeros(4), np.zeros(4), dt_cmd)
 
                 if t_s is not None and (time.time() - t_s) >= self.squeeze_time:
+                    time.sleep(phase_settle_s)
                     phase = "LIFT"
-                    self.get_logger().info("Phase: LIFT")
+                    self.get_logger().info(f"Phase: LIFT with target {lift_pos.tolist()}")
                     self.hand_ctrl.linear_vel_limit = lift_lin_limit
-                    self.hand_ctrl.set_target_pose(
-                        T_lift,
-                        duration=float(self.get_parameter("lift_duration").value),
-                        type="abs",
-                    )
+                    # Re-calculate lift target based on WHERE WE ENDED UP, not original simple offset?
+                    # Or just use the original fixed Lift target derived from latest Approach?
+                    # Let's use the T_lift derived from latest valid Approach (which is T_approach.translation + [0,0,lift_z])
+                    # We should probably update T_lift one last time based on where we actually grasped.
+                    
+                    final_grasp_pos = self.hand_ctrl.x_cur.translation.copy()
+                    lift_pos_final = final_grasp_pos + np.array([0.0, 0.0, lift_z], dtype=float)
+                    T_lift.translation = lift_pos_final
+                    
+                    self.hand_ctrl.set_target_pose(T_lift, duration=float(self.get_parameter("lift_duration").value), type="abs")
 
             elif phase == "LIFT":
                 self._drive_gripper(self.gripper_close_q)
-                v_hand = self.hand_ctrl.update(dt)
+                v_hand = self.hand_ctrl.update(dt_cmd)
                 if arm_side == "right":
-                    self.robot.update(None, v_hand, dt)
+                    self.robot.update(None, v_hand, dt_cmd)
                 else:
-                    self.robot.update(v_hand, None, dt)
+                    self.robot.update(v_hand, None, dt_cmd)
 
                 if self.hand_ctrl.is_finished():
                     self.get_logger().info("Done.")
                     break
 
-            # Debug once per second: confirms dt isn't tiny and loop is alive
             if (time.monotonic() - dbg_t) > 1.0:
                 dbg_t = time.monotonic()
-                self.get_logger().info(f"[LOOP] phase={phase} dt={dt:.3f} sim={self.sim}")
+                self.get_logger().info(f"[LOOP] phase={phase} dt_cmd={dt_cmd:.3f} feedback_hz={float(self.get_parameter('feedback_hz').value):.1f}")
 
-            # basic safety timeout
             if time.time() - t0 > 60.0:
                 self.get_logger().warn("Timeout, stopping.")
                 break
+
+            self._sleep_to_rate(t_cycle_start, dt_cmd)
 
 
 def main():
