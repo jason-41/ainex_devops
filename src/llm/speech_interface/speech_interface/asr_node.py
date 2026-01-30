@@ -65,9 +65,10 @@ class ASRNode(Node):
         # =========================
         # Audio and VAD parameters
         # =========================
-        self.sample_rate =8000
-        # TODO: Adjust microphone device index if needed
-        self.device = 6                 # Microphone device index
+        self.sample_rate =48000
+        # TODO: Adjust microphone device index if needed, the device id could vary everytime when u plug in your devices
+    
+        self.device = 3                 # Microphone device index
         self.frame_duration_ms = 30     # Supported values: 10 / 20 / 30 ms
         self.silence_timeout_ms = 800   # Duration of silence to mark end of utterance
 

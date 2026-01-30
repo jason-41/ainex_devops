@@ -189,13 +189,12 @@ class FaceDetectionNode(Node):
         # Convert CompressedImage → OpenCV format
         try:
             import numpy as np
-            # 将 JPEG 数据解码为 numpy 数组
+            # decode JPEG data to numpy array
             np_arr = np.frombuffer(msg.data, np.uint8)
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # 得到 BGR 图像
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  
         except Exception as e:
             self.get_logger().error(f"cv_bridge conversion failed: {e}")
             return
-
 
         h, w, _ = frame.shape
 
@@ -221,9 +220,9 @@ class FaceDetectionNode(Node):
         has_face = False  # reset for next frame
 
         if result.detections:
-            # self.get_logger().info(f">>> detections count: {len(result.detections)}")
+            self.get_logger().info(f">>> detections count: {len(result.detections)}")
             for det in result.detections:
-                # self.get_logger().info(">>> entered detection loop")
+                self.get_logger().info(">>> entered detection loop")
                 bbox = det.bounding_box
 
                 # Face Recognition (Bo vs Stranger) 
@@ -265,8 +264,9 @@ class FaceDetectionNode(Node):
                     face_encoding = encodings[0]
                     distance = np.linalg.norm(face_encoding - self.bo_face_encoding)
                     
-                    # threshold for recognition
-                    if distance < 0.45: 
+                    # threshold for recognition, the threshold could be setted bigger if you want to make the authetication less strict
+                    #cause our ainex camera is not very precise
+                    if distance < 0.55: 
                         self.known_face_counter += 1
                         self.get_logger().info(
                             f"Known face detected ({self.known_face_counter}/"
@@ -319,7 +319,8 @@ class FaceDetectionNode(Node):
                 "Authentication complete. Shutting down face_detection_node."
             )
 
-            # shutdown node after successful authenticatio
+            # shutdown node after successful authentication
+            rclpy.shutdown()
             return
 
         # Publish detection result message
@@ -369,5 +370,4 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
 
