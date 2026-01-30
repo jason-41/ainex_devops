@@ -104,7 +104,7 @@ class AinexGraspNode(Node):
             -0.29740411, -1.24191744,  0.02932153, -1.65457213,
             0.0,        -0.01675516,  0.00837758,  0.83775806,
             -2.22843647, -1.41162229, -0.03769911, -0.26808256,
-            1.36758114, THe  0.10890855,  1.68389368,  0.74979347
+            1.36758114, 0.10890855,  1.68389368,  0.74979347
         ], dtype=float)
         self.get_logger().info(f"initial pose {q_init}")
         self.robot.move_to_initial_position(q_init)
@@ -367,8 +367,8 @@ class AinexGraspNode(Node):
                     pre_pos_new = current_obj_pos + np.array([-pre_x, 0.0, pre_z], dtype=float)
                     approach_pos_new = current_obj_pos + np.array([-approach_x, 0.0, 0.0], dtype=float)
                     
-                    T_pre.translation = pre_pos_new
-                    T_approach.translation = approach_pos_new
+                    T_pre = pin.SE3(R_hand, pre_pos_new)
+                    T_approach = pin.SE3(R_hand, approach_pos_new)
                     
                 except Exception:
                     pass
