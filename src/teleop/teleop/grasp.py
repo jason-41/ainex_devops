@@ -56,7 +56,7 @@ class AinexGraspNode(Node):
         self.declare_parameter("lock_target_once", False)
 
         # Hardcoded pose in CAMERA frame when use_camera:=false
-        self.declare_parameter("hardcoded_cam_xyz", [0.0, 0.0, 0.05])
+        self.declare_parameter("hardcoded_cam_xyz", [0.056, -0.008, 0.2])
         self.declare_parameter("hardcoded_cam_rpy", [0.0, 0.0, 0.0])
 
         # Grasp offsets (position-only), in BASE frame after transform
@@ -96,16 +96,16 @@ class AinexGraspNode(Node):
         self.robot = AinexRobot(self, self.robot_model, dt_cmd, sim=self.sim)
 
         # ----------------------------
-        # Starting posture (exactly as you requested)
+        # Starting posture (Symmetricized as requested)
         # ----------------------------
         q_init = np.array([
-            0.18, -0.96, -0.01675516,  0.00418879,
-            -0.87126839,  2.33315611,  1.47864294,  0.03769911,
-            -0.29740411, -1.24191744,  0.02932153, -1.65457213,
-            0.0,        -0.01675516,  0.00837758,  0.83775806,
-            -2.22843647, -1.41162229, -0.03769911, -0.26808256,
-            1.36758114, 0.10890855,  1.68389368,  0.74979347
+            0.18, -0.96,                              # Head
+            0.031416,   -0.004189,  -0.879646,  2.280796,  1.451416,  0.033510,  # L Leg
+           -0.064926,   -0.942419,  -0.129853, -1.625251,  0.222,                # L Arm (Gripper)
+           -0.031416,    0.004189,   0.879646, -2.280796, -1.451416, -0.033510,  # R Leg
+           -0.064926,    0.942419,  -0.129853,  1.625251,  0.222                 # R Arm (Gripper)
         ], dtype=float)
+
         self.get_logger().info(f"initial pose {q_init}")
         self.robot.move_to_initial_position(q_init)
         time.sleep(1.0)
@@ -154,7 +154,7 @@ class AinexGraspNode(Node):
             self.create_subscription(PoseStamped, self.pose_topic, self._pose_cb, 10)
             self.get_logger().info(f"Listening for object pose on {self.pose_topic} (PoseStamped, expected camera_optical_link).")
         else:
-            self.get_logger().warn("use_camera:=false -> using hardcoded pose in camera_optical_link frame.")
+            self.get_logger().warn(f"use_camera:=false -> using hardcoded pose {self.get_parameter('hardcoded_cam_xyz').value} in camera_optical_link frame.")
 
         # ----------------------------
         # GRIPPER INDICES (both sides)
