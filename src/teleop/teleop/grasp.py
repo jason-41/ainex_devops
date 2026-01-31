@@ -275,20 +275,71 @@ class AinexGraspNode(Node):
             time.sleep(remaining)
 
     def run(self):
-        # WAIT FOR TARGET
-        start_wait = time.time()
-        T_b_obj = None
+        # ---------------------------------------------------------
+        # 1. ESTIMATE TARGET POSE (ROBUST AVERAGING)
+        # ---------------------------------------------------------
+        self.get_logger().info("Collecting samples to estimate target pose...")
+        samples = []
+        last_pose_t = 0.0
+        start_collect = time.time()
+        
+        # Collection loop for N samples (e.g. 20)
         while rclpy.ok():
-            rclpy.spin_once(self, timeout_sec=0.1)
+            rclpy.spin_once(self, timeout_sec=0.01)
             self._maybe_refresh_from_robot()
-            try:
-                T_b_obj = self._get_object_T_b()
+            
+            if time.time() - start_collect > 5.0:
+                if len(samples) == 0:
+                    if self.use_camera:
+                        self.get_logger().warn("Timeout waiting for poses.")
+                        return 
                 break
-            except Exception as e:
-                if time.time() - start_wait > 10.0:
-                    raise RuntimeError(f"Timeout waiting for object pose: {e}")
+                
+            if len(samples) >= 20: 
+                break
 
-        obj_pos = T_b_obj.translation.copy()
+            try:
+                # Deduplicate based on timestamp if using camera
+                if self.use_camera:
+                    if self.latest_pose_msg is None:
+                        continue
+                    if self.latest_pose_t == last_pose_t:
+                        continue 
+                    if (time.time() - self.latest_pose_t) > 1.0:
+                        continue
+                    last_pose_t = self.latest_pose_t
+                
+                # Get pose (bypass lock check temporarily to collect samples)
+                self.locked_T_b_obj = None 
+                T_sample = self._get_object_T_b()
+                samples.append(T_sample.translation.copy())
+                
+                if len(samples) % 5 == 0:
+                    self.get_logger().info(f"Collected {len(samples)} samples...")
+                    
+            except Exception:
+                continue
+
+        if len(samples) == 0:
+             # Fallback
+             try:
+                 T_b_obj = self._get_object_T_b()
+                 obj_pos = T_b_obj.translation.copy()
+             except Exception as e:
+                 raise RuntimeError(f"Could not get any target pose: {e}")
+        else:
+            # Median
+            data = np.array(samples)
+            median_pos = np.median(data, axis=0)
+            self.get_logger().info(f"Final Robust Target (median of {len(samples)}): {median_pos}")
+            
+            # Lock it
+            self.locked_T_b_obj = pin.SE3(np.eye(3), median_pos)
+            self.lock_target_once = True
+            
+            T_b_obj = self.locked_T_b_obj
+            obj_pos = median_pos.copy()
+
         self.get_logger().info(f"[TARGET] object_base={obj_pos.tolist()}")
 
         # ARM SELECTION
@@ -357,23 +408,23 @@ class AinexGraspNode(Node):
             rclpy.spin_once(self, timeout_sec=0.01) # <-- Changed to 0.01 to match hands_control
             self._maybe_refresh_from_robot()
 
-            # --- DYNAMIC TRACKING UPDATES ---
-            if phase in ("PREGRASP", "APPROACH"):
-                try:
-                    self.locked_T_b_obj = None  # Force fresh pose
-                    T_current_obj = self._get_object_T_b()
-                    current_obj_pos = T_current_obj.translation.copy()
-
-                    # Recalculate targets based on fresh object position
-                    # We keep the orientation R_hand fixed to avoid jitter
-                    pre_pos_new = current_obj_pos + np.array([-pre_x, 0.0, pre_z], dtype=float)
-                    approach_pos_new = current_obj_pos + np.array([-approach_x, 0.0, 0.0], dtype=float)
-                    
-                    T_pre = pin.SE3(R_hand, pre_pos_new)
-                    T_approach = pin.SE3(R_hand, approach_pos_new)
-                    
-                except Exception:
-                    pass
+            # --- DYNAMIC TRACKING UPDATES (DISABLED FOR ROBUST LOCKING) ---
+            # if phase in ("PREGRASP", "APPROACH"):
+            #     try:
+            #         self.locked_T_b_obj = None  # Force fresh pose
+            #         T_current_obj = self._get_object_T_b()
+            #         current_obj_pos = T_current_obj.translation.copy()
+            #
+            #         # Recalculate targets based on fresh object position
+            #         # We keep the orientation R_hand fixed to avoid jitter
+            #         pre_pos_new = current_obj_pos + np.array([-pre_x, 0.0, pre_z], dtype=float)
+            #         approach_pos_new = current_obj_pos + np.array([-approach_x, 0.0, 0.0], dtype=float)
+            #         
+            #         T_pre = pin.SE3(R_hand, pre_pos_new)
+            #         T_approach = pin.SE3(R_hand, approach_pos_new)
+            #         
+            #     except Exception:
+            #         pass
 
             if phase in ("PREGRASP", "APPROACH"):
                 self._drive_gripper(self.gripper_open_q)
