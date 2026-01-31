@@ -21,16 +21,18 @@ class AiNexModel:
         # Add additional frames for left and right hands
         self.add_additional_frames(
             name="l_hand_link",
-            parent_frame="l_gripper_link",
-            translation=np.array([-0.02, 0.025, 0.0]),
+            parent_frame="l_el_yaw_link",               # <-- changed
+            translation=np.array([-0.000107, 0.114232, -0.019072]),
             rotation=np.eye(3)
         )
+
         self.add_additional_frames(
             name="r_hand_link",
-            parent_frame="r_gripper_link",
-            translation=np.array([-0.02, -0.025, 0.0]),
+            parent_frame="r_el_yaw_link",               # <-- changed
+            translation=np.array([-0.0001098182, -0.1142355538, -0.0190701819]),
             rotation=np.eye(3)
         )
+
 
         # Retrieve frame IDs for hands for later use
         self.left_hand_id = self.model.getFrameId("l_hand_link")

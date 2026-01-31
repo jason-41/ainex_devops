@@ -91,3 +91,12 @@ ros2 service call /Unlock_All_Joints std_srvs/srv/Empty {}
 To run grasp testing for cube hardcoded position relativ to camera frame
 ```bash
 ros2 run teleop grasp --ros-args -p sim:=false -p use_camera:=false -p hardcoded_cam_xyz:="[0.05,0.05,-0.05]"
+
+q_init = np.array([
+            0.18, -0.96, -0.01675516,  0.00418879,
+            -0.87126839,  2.33315611,  1.47864294,  0.03769911,
+            -0.29740411, -1.24191744,  0.02932153, -1.65457213,
+            0.0,        -0.01675516,  0.00837758,  0.83775806,
+            -2.22843647, -1.41162229, -0.03769911, -0.26808256,
+            1.36758114, 0.10890855,  1.68389368,  0.74979347
+        ], dtype=float)
