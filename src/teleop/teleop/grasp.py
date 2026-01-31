@@ -71,7 +71,7 @@ class AinexGraspNode(Node):
         self.declare_parameter("lift_duration", 3.0)
 
         # Real-robot control loop period (fixed)
-        self.declare_parameter("dt_cmd", 0.05)          # 20 Hz fixed command loop (Larger steps)
+        self.declare_parameter("dt_cmd", 0.08)          # Increased for faster integration
         self.declare_parameter("feedback_hz", 0.0)      # default OFF
 
         # Gripper
@@ -296,8 +296,10 @@ class AinexGraspNode(Node):
         self.get_logger().info(f"[ARM_SELECT] y={float(obj_pos[1]):.3f} -> arm_side={arm_side}")
 
         self.hand_ctrl = HandController(self, self.robot_model, arm_side=arm_side)
-        # Set a base speed limit - increased significantly to match hands_control effective speed
-        self.hand_ctrl.linear_vel_limit = 0.4
+        # Set a base speed limit - maximized for speed
+        self.hand_ctrl.linear_vel_limit = 1.0
+        # Also uncapping joint velocities (defaults are 2.0)
+        self.hand_ctrl.joint_vel_limit = np.array([8.0, 8.0, 8.0, 8.0])
 
         # GRIPPER CONFIG
         gripper_joint_name = "l_gripper" if arm_side == "left" else "r_gripper"
@@ -342,8 +344,8 @@ class AinexGraspNode(Node):
         t0 = time.time()
         t_s = None
 
-        approach_lin_limit = 0.15
-        lift_lin_limit = 0.20
+        approach_lin_limit = 0.3
+        lift_lin_limit = 0.3
 
         dt_cmd = float(self.get_parameter("dt_cmd").value)
         phase_settle_s = float(self.get_parameter("phase_settle_s").value)
@@ -377,8 +379,8 @@ class AinexGraspNode(Node):
                 self._drive_gripper(self.gripper_open_q)
 
             if phase == "PREGRASP":
-                # VISUAL SERVOING: Update target continuously with short duration
-                self.hand_ctrl.set_target_pose(T_pre, duration=0.1, type="abs")
+                # VISUAL SERVOING: Update target continuously with very short duration to force max velocity
+                self.hand_ctrl.set_target_pose(T_pre, duration=0.05, type="abs")
 
                 v_hand = self.hand_ctrl.update(dt_cmd)
                 if arm_side == "right":
@@ -396,8 +398,8 @@ class AinexGraspNode(Node):
                     # Don't need to set long duration here, loop will update it
  
             elif phase == "APPROACH":
-                # VISUAL SERVOING: Update target continuously with short duration
-                self.hand_ctrl.set_target_pose(T_approach, duration=0.1, type="abs")
+                # VISUAL SERVOING: Update target continuously with very short duration to force max velocity
+                self.hand_ctrl.set_target_pose(T_approach, duration=0.05, type="abs")
 
                 v_hand = self.hand_ctrl.update(dt_cmd)
                 if arm_side == "right":
