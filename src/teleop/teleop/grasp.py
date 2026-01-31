@@ -71,7 +71,7 @@ class AinexGraspNode(Node):
         self.declare_parameter("lift_duration", 3.0)
 
         # Real-robot control loop period (fixed)
-        self.declare_parameter("dt_cmd", 0.01)          # 100 Hz fixed command loop
+        self.declare_parameter("dt_cmd", 0.05)          # 20 Hz fixed command loop (Larger steps)
         self.declare_parameter("feedback_hz", 0.0)      # default OFF
 
         # Gripper
@@ -296,8 +296,8 @@ class AinexGraspNode(Node):
         self.get_logger().info(f"[ARM_SELECT] y={float(obj_pos[1]):.3f} -> arm_side={arm_side}")
 
         self.hand_ctrl = HandController(self, self.robot_model, arm_side=arm_side)
-        # Set a base speed limit
-        self.hand_ctrl.linear_vel_limit = 0.04
+        # Set a base speed limit - increased significantly to match hands_control effective speed
+        self.hand_ctrl.linear_vel_limit = 0.4
 
         # GRIPPER CONFIG
         gripper_joint_name = "l_gripper" if arm_side == "left" else "r_gripper"
@@ -342,8 +342,8 @@ class AinexGraspNode(Node):
         t0 = time.time()
         t_s = None
 
-        approach_lin_limit = 0.02
-        lift_lin_limit = 0.08
+        approach_lin_limit = 0.15
+        lift_lin_limit = 0.20
 
         dt_cmd = float(self.get_parameter("dt_cmd").value)
         phase_settle_s = float(self.get_parameter("phase_settle_s").value)
@@ -351,8 +351,8 @@ class AinexGraspNode(Node):
         dbg_t = time.monotonic()
 
         while rclpy.ok():
-            t_cycle_start = time.monotonic()
-            rclpy.spin_once(self, timeout_sec=0.0)
+            # t_cycle_start = time.monotonic()  <-- Removed to run freely like hands_control.py
+            rclpy.spin_once(self, timeout_sec=0.01) # <-- Changed to 0.01 to match hands_control
             self._maybe_refresh_from_robot()
 
             # --- DYNAMIC TRACKING UPDATES ---
@@ -378,7 +378,7 @@ class AinexGraspNode(Node):
 
             if phase == "PREGRASP":
                 # VISUAL SERVOING: Update target continuously with short duration
-                self.hand_ctrl.set_target_pose(T_pre, duration=0.2, type="abs")
+                self.hand_ctrl.set_target_pose(T_pre, duration=0.1, type="abs")
 
                 v_hand = self.hand_ctrl.update(dt_cmd)
                 if arm_side == "right":
@@ -397,7 +397,7 @@ class AinexGraspNode(Node):
  
             elif phase == "APPROACH":
                 # VISUAL SERVOING: Update target continuously with short duration
-                self.hand_ctrl.set_target_pose(T_approach, duration=0.2, type="abs")
+                self.hand_ctrl.set_target_pose(T_approach, duration=0.1, type="abs")
 
                 v_hand = self.hand_ctrl.update(dt_cmd)
                 if arm_side == "right":
@@ -461,7 +461,7 @@ class AinexGraspNode(Node):
                 self.get_logger().warn("Timeout, stopping.")
                 break
 
-            self._sleep_to_rate(t_cycle_start, dt_cmd)
+            # self._sleep_to_rate(t_cycle_start, dt_cmd) <--- Removed explicit sleep to allow "overclocking" like hands_control
 
 
 def main():
