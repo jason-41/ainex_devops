@@ -359,9 +359,17 @@ class AinexGraspNode(Node):
         q_lo = float(self.robot_model.model.lowerPositionLimit[self.qg_idx])
         q_hi = float(self.robot_model.model.upperPositionLimit[self.qg_idx])
         margin = 0.15 * (q_hi - q_lo)
-        self.gripper_open_q = q_hi - margin
+        
         close_fraction = float(self.get_parameter("close_fraction").value)
-        self.gripper_close_q = self.gripper_open_q + close_fraction * ((q_lo + margin) - self.gripper_open_q)
+
+        # Fix: Left gripper logic is inverted (q_hi is closed, q_lo is open)
+        if arm_side == "left":
+             self.gripper_open_q = q_lo + margin
+             self.gripper_close_q = self.gripper_open_q + close_fraction * ((q_hi - margin) - self.gripper_open_q)
+        else:
+             # Right gripper: q_hi is open
+             self.gripper_open_q = q_hi - margin
+             self.gripper_close_q = self.gripper_open_q + close_fraction * ((q_lo + margin) - self.gripper_open_q)
 
         self.get_logger().info(
             f"[GRIP] {gripper_joint_name} limits [{q_lo:.2f},{q_hi:.2f}] "
