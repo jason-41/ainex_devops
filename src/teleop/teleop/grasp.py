@@ -56,9 +56,12 @@ class AinexGraspNode(Node):
         self.declare_parameter("hardcoded_cam_rpy", [0.0, 0.0, 0.0])
 
         # Offsets in base frame
-        self.declare_parameter("pre_x_off", -0.02)
+        self.declare_parameter("pre_x_off", 0.02)
+        self.declare_parameter("pre_y_off", 0.02)          # NEW
         self.declare_parameter("pre_z_off", 0.015)
-        self.declare_parameter("approach_x_off", -0.01)
+
+        self.declare_parameter("approach_x_off", 0.0005)
+        self.declare_parameter("approach_y_off", 0.005)      # NEW
         self.declare_parameter("lift_z", 0.10)
 
         # Durations
@@ -274,13 +277,11 @@ class AinexGraspNode(Node):
         # ---------------------------------------------------------
         # 3) Setup controller
         # ---------------------------------------------------------
-        # Good default damping for real robot
         Kp = np.array([5.0, 5.0, 5.0])
         Kd = np.array([2.0, 2.0, 2.0])
 
         self.hand_ctrl = HandController(self, self.robot_model, arm_side=arm_side, Kp=Kp, Kd=Kd)
 
-        # Conservative defaults (phase overrides below)
         self.hand_ctrl.linear_vel_limit = 0.25
         self.hand_ctrl.joint_vel_limit = np.array([3.0, 3.0, 3.0, 3.0])
         self.hand_ctrl.dls_lambda = 0.03
@@ -298,11 +299,9 @@ class AinexGraspNode(Node):
         close_frac = float(self.get_parameter("close_fraction").value)
 
         if arm_side == "left":
-            # open near lower
             self.gripper_open_q = q_lo + margin
             self.gripper_close_q = self.gripper_open_q + close_frac * ((q_hi - margin) - self.gripper_open_q)
         else:
-            # open near upper
             self.gripper_open_q = q_hi - margin
             self.gripper_close_q = self.gripper_open_q + close_frac * ((q_lo + margin) - self.gripper_open_q)
 
@@ -314,12 +313,22 @@ class AinexGraspNode(Node):
         # 5) Build targets (use current hand orientation)
         # ---------------------------------------------------------
         pre_x = float(self.get_parameter("pre_x_off").value)
+        pre_y = float(self.get_parameter("pre_y_off").value)               # NEW
         pre_z = float(self.get_parameter("pre_z_off").value)
+
+        
+
         approach_x = float(self.get_parameter("approach_x_off").value)
+        approach_y = float(self.get_parameter("approach_y_off").value)     # NEW
         lift_z = float(self.get_parameter("lift_z").value)
 
-        pre_pos = obj_pos + np.array([-pre_x, 0.0, pre_z], dtype=float)
-        approach_pos = obj_pos + np.array([-approach_x, 0.0, 0.0], dtype=float)
+        # If you prefer "magnitudes" only, uncomment this to auto-apply side sign:
+        # side_sign = 1.0 if arm_side == "left" else -1.0
+        # pre_y = side_sign * abs(pre_y)
+        # approach_y = side_sign * abs(approach_y)
+
+        pre_pos = obj_pos + np.array([-pre_x, pre_y, pre_z], dtype=float)                 # UPDATED
+        approach_pos = obj_pos + np.array([-approach_x, approach_y, 0.0], dtype=float)    # UPDATED
         lift_pos = approach_pos + np.array([0.0, 0.0, lift_z], dtype=float)
 
         H_current = self.robot_model.right_hand_pose() if arm_side == "right" else self.robot_model.left_hand_pose()
@@ -333,9 +342,9 @@ class AinexGraspNode(Node):
         self.get_logger().info(f"APP: {approach_pos.tolist()}")
         self.get_logger().info(f"LIFT:{lift_pos.tolist()}")
 
-        # Phase limits (fast but stable)
+        # Phase limits
         pre_lin_limit = 0.20
-        app_lin_limit = 0.06
+        app_lin_limit = 0.03
         lift_lin_limit = 0.20
 
         pre_duration = float(self.get_parameter("pre_duration").value)
@@ -360,33 +369,38 @@ class AinexGraspNode(Node):
         while rclpy.ok():
             t_cycle_start = time.monotonic()
 
-            # process callbacks quickly; keep timing deterministic
             rclpy.spin_once(self, timeout_sec=0.0)
 
-            # --- compute arm command
             v_hand = self.hand_ctrl.update(self.dt_cmd)
 
-            # --- gripper command (ONLY active gripper)
+            # Only active gripper is commanded
             if phase in ("PREGRASP", "APPROACH"):
                 self._drive_active_gripper(self.gripper_open_q)
             elif phase in ("CLOSE", "SQUEEZE", "LIFT"):
                 self._drive_active_gripper(self.gripper_close_q)
 
-            # --- send to robot
+            # Send to robot
             if arm_side == "right":
                 self.robot.update(None, v_hand, self.dt_cmd)
             else:
                 self.robot.update(v_hand, None, self.dt_cmd)
 
-            # --- phase transitions
+            # Phase transitions
             if phase == "PREGRASP":
                 dist = float(np.linalg.norm(self.hand_ctrl.x_cur.translation - T_pre.translation))
                 if dist < pre_th or self.hand_ctrl.is_finished():
                     time.sleep(phase_settle_s)
                     phase = "APPROACH"
                     self.get_logger().info("Phase: APPROACH")
+
+                    # Slower + softer for final approach
                     self.hand_ctrl.linear_vel_limit = app_lin_limit
+                    self.hand_ctrl.Kp = np.array([3.0, 3.0, 3.0])   # softer stiffness
+                    self.hand_ctrl.Kd = np.array([2.5, 2.5, 2.5])   # a bit more damping
+                    self.hand_ctrl.u_alpha = 0.18                   # more smoothing in approach
+
                     self.hand_ctrl.set_target_pose(T_app, duration=app_duration, type="abs")
+
 
             elif phase == "APPROACH":
                 dist = float(np.linalg.norm(self.hand_ctrl.x_cur.translation - T_app.translation))
@@ -396,13 +410,12 @@ class AinexGraspNode(Node):
                     self.get_logger().info("Phase: CLOSE")
 
             elif phase == "CLOSE":
-                # keep arm at rest while closing
+                # Hold arm still while closing
                 if arm_side == "right":
                     self.robot.update(None, np.zeros(4), self.dt_cmd)
                 else:
                     self.robot.update(np.zeros(4), None, self.dt_cmd)
 
-                # check gripper position (physical feedback depends on driver updating q)
                 if abs(float(self.robot.q[self.qg_idx]) - float(self.gripper_close_q)) < self.gripper_eps:
                     phase = "SQUEEZE"
                     t_squeeze_start = time.monotonic()
@@ -419,7 +432,6 @@ class AinexGraspNode(Node):
                     phase = "LIFT"
                     self.get_logger().info("Phase: LIFT")
                     self.hand_ctrl.linear_vel_limit = lift_lin_limit
-                    # lift from current grasp point (robust)
                     grasp_pos = self.hand_ctrl.x_cur.translation.copy()
                     T_lift.translation = grasp_pos + np.array([0.0, 0.0, lift_z], dtype=float)
                     self.hand_ctrl.set_target_pose(T_lift, duration=lift_duration, type="abs")
