@@ -83,10 +83,13 @@ class TurnAroundNode(Node):
         # Calculate pure motion duration
         motion_duration = target_rad / abs(speed)
 
+        # adjust the desired time here
+        self.time_correct_factor = 0
+
         # Total duration strategy:
         # Simple open loop: just add startup time? Or assume effective motion starts late?
         # A simple heuristic: run for calculated time + compensation
-        total_duration = motion_duration + startup_compensation - 0
+        total_duration = motion_duration + startup_compensation - self.time_correct_factor
         # total_duration = 60
 
         self.get_logger().info(
