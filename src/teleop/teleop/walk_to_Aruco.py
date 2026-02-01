@@ -32,7 +32,7 @@ class AinexWalkToAruco(Node):
         # --------------------------------------------------
         self.dt = 0.05
 
-        self.Kx = 1.2  # original 1.0
+        self.Kx = 2  # Match tutorial version
         self.Ky = 0.0
         self.Ktheta = 1.2
 
@@ -155,6 +155,15 @@ class AinexWalkToAruco(Node):
         self.get_logger().info(f"ArUco Pose: [{p.x:.3f}, {p.y:.3f}, {p.z:.3f}]")
 
     def control_loop(self):
+        # ----------------------------------------
+        # Check if already finished
+        # ----------------------------------------
+        if self.finished:
+            self.cmd_vel_pub.publish(Twist())
+            # Stop the timer to prevent further callbacks
+            self.timer.cancel()
+            self.get_logger().info("Mission finished. Exiting node.")
+            raise SystemExit
 
         # ----------------------------------------
         # Manual emergency stop
@@ -213,19 +222,11 @@ class AinexWalkToAruco(Node):
         # Distance & heading
         # --------------------------------------------------
         distance = math.sqrt(x_m**2 + y_m**2)
-        # Use marker quaternion yaw so front-facing yields ~0 rotation
-        raw_m, pitch_m, yaw_m = R.from_quat(q_opt).as_euler('xyz')
-        # yaw_error = self._normalize_angle(yaw_m + self.yaw_offset)
-        pitch_error = self._normalize_angle(pitch_m)-45
-
-        # --------------------------------------------------
-        # Stop condition
-        # --------------------------------------------------
-        if distance < self.stop_distance:
-            self.cmd_vel_pub.publish(Twist())
-            self.get_logger().info("Target reached (distance < stop_distance).")
-            self.finished = True
-            return
+        # Calculate heading error using atan2
+        yaw_error = self._normalize_angle(math.atan2(y_m, x_m))
+        
+        # Debug: print marker position and errors
+        self.get_logger().info(f"Marker pos - x_m: {x_m:.3f}, y_m: {y_m:.3f}, dist: {distance:.3f}, yaw_err: {yaw_error:.3f}")
 
         # # --------------------------------------------------
         # # Proportional walking controller （not used）
@@ -244,23 +245,29 @@ class AinexWalkToAruco(Node):
         # twist.angular.z = wz
 
         # ----------------------------------------
-        # Heading-first walking controller
+        # Proportional walking controller
         # ----------------------------------------
-        angle_threshold = 0.17  # ~10 degrees
+        angle_threshold = 0.2  # ~14 degrees
+        distance_error = x_m - self.stop_distance
 
         twist = Twist()
 
-        # 1) Rotate first if not facing marker
-        print("yaw_error",pitch_error)
-        if abs(pitch_error) > angle_threshold:
-            twist.linear.x = 0.0
-            twist.angular.z = self.Ktheta * pitch_error
-
-        # 2) Otherwise, walk straight forward
+        # Angular Control
+        # Use simple P-control direction based on Camera X
+        # x > 0 means marker is on the Right -> Turn Right (-Z)
+        if pose.position.x > 0:
+            twist.angular.z = -self.Ktheta * abs(pose.position.x)
         else:
-            distance_error = x_m - self.stop_distance
-            twist.linear.x = self.Kx * distance_error
-            twist.angular.z = self.Ktheta * pitch_error
+            # marker is on the Left -> Turn Left (+Z)
+            twist.angular.z = self.Ktheta * abs(pose.position.x)
+
+        # Linear Control
+        # Simultaneous move and turn
+        twist.linear.x = self.Kx * distance_error
+
+        # Prevent moving backward if marker is behind
+        if x_m < 0.0:
+            twist.linear.x = 0.0
 
         # ----------------------------------------
         # Clamp
@@ -271,7 +278,19 @@ class AinexWalkToAruco(Node):
         # IMPORTANT: no lateral motion
         twist.linear.y = 0.0
 
+        self.get_logger().info(f"cmd_vel: vx={twist.linear.x:.3f}, wz={twist.angular.z:.3f}")
         self.cmd_vel_pub.publish(twist)
+
+        # --------------------------------------------------
+        # Stop condition
+        # --------------------------------------------------
+        # Only check velocity threshold if we are aligned (yaw_error <= angle_threshold)
+        # Because we force linear.x to 0 when rotating, which would trigger a false stop.
+        if distance < self.stop_distance or (abs(yaw_error) <= angle_threshold and abs(twist.linear.x) < 0.05):
+            self.cmd_vel_pub.publish(Twist())
+            self.get_logger().info("Target reached (distance/velocity threshold).")
+            self.finished = True
+            return
 
     def _normalize_angle(self, angle):
         return (angle + math.pi) % (2.0 * math.pi) - math.pi
