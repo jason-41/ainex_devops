@@ -1,3 +1,5 @@
+import os
+from glob import glob
 from setuptools import setup
 
 package_name = 'teleop'
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -26,6 +29,7 @@ setup(
             'turn_around = teleop.turn_around:main',
             'walk_to_aruco = teleop.walk_to_Aruco:main',
             'grasp = teleop.grasp:main',
+            'degrasp = teleop.degrasp:main',
         ],
     },
 )

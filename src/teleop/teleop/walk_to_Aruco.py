@@ -17,7 +17,7 @@ import threading
 from ainex_controller.ainex_model import AiNexModel
 
 from geometry_msgs.msg import PoseStamped, Twist
-from vision_interfaces.msg import MarkerInfoArray, MarkerInfo
+# from vision_interfaces.msg import MarkerInfoArray, MarkerInfo
 from scipy.spatial.transform import Rotation as R
 
 
@@ -36,7 +36,10 @@ class AinexWalkToAruco(Node):
         self.Ky = 0.0
         self.Ktheta = 1.2
 
-        self.stop_distance = 0.1   # meters
+        # Yaw alignment offset (radians). Use ±pi/2 if the robot faces sideways.
+        # self.yaw_offset = np.pi / 4.0
+
+        self.stop_distance = 0.3   # meters
         self.max_vel = 1.0
 
         # --- ArUco timeout handling ---
@@ -76,13 +79,19 @@ class AinexWalkToAruco(Node):
         # --------------------------------------------------
         self.aruco_pose_msg = None
 
-        self.create_subscription(
-            MarkerInfoArray,  # message type
-            "/ainex/vision/markers",  # topic name
-            self.aruco_callback,  # callback
-            10  # QoS depth
+        # self.create_subscription(
+        #     MarkerInfoArray,  # message type
+        #     "/ainex/vision/markers",  # topic name
+        #     self.aruco_callback,  # callback
+        #     10  # QoS depth
+        # )
+        self.aruco_pose_sub = self.create_subscription(
+            PoseStamped,
+            '/aruco_pose',
+            self.aruco_pose_callback,
+            10
         )
-
+        self.latest_aruco_pose = None
         self.cmd_vel_pub = self.create_publisher(
             Twist,
             "/cmd_vel",
@@ -104,13 +113,13 @@ class AinexWalkToAruco(Node):
     # --------------------------------------------------
     # Callbacks
     # --------------------------------------------------
-    def aruco_callback(self, msg: MarkerInfoArray):
-        if not msg.markers:
-            return
-        # Just pick the first marker for now or filter by ID
-        best_marker = msg.markers[0]
-        self.aruco_pose_msg = best_marker
-        self.last_aruco_time = self.get_clock().now()
+    # def aruco_callback(self, msg: MarkerInfoArray):
+    #     if not msg.markers:
+    #         return
+    #     # Just pick the first marker for now or filter by ID
+    #     best_marker = msg.markers[0]
+    #     self.aruco_pose_msg = best_marker
+    #     self.last_aruco_time = self.get_clock().now()
 
 
     # def keyboard_listener(self):
@@ -136,6 +145,14 @@ class AinexWalkToAruco(Node):
     # --------------------------------------------------
     # Main control loop
     # --------------------------------------------------
+    def aruco_pose_callback(self, msg):
+        self.latest_aruco_pose = msg
+        self.aruco_pose_msg = msg
+        self.last_aruco_time = self.get_clock().now()
+        
+        # Print received pose
+        p = msg.pose.position
+        self.get_logger().info(f"ArUco Pose: [{p.x:.3f}, {p.y:.3f}, {p.z:.3f}]")
 
     def control_loop(self):
 
@@ -196,7 +213,10 @@ class AinexWalkToAruco(Node):
         # Distance & heading
         # --------------------------------------------------
         distance = math.sqrt(x_m**2 + y_m**2)
-        yaw_error = math.atan2(y_m, x_m)
+        # Use marker quaternion yaw so front-facing yields ~0 rotation
+        raw_m, pitch_m, yaw_m = R.from_quat(q_opt).as_euler('xyz')
+        # yaw_error = self._normalize_angle(yaw_m + self.yaw_offset)
+        pitch_error = self._normalize_angle(pitch_m)-45
 
         # --------------------------------------------------
         # Stop condition
@@ -226,20 +246,21 @@ class AinexWalkToAruco(Node):
         # ----------------------------------------
         # Heading-first walking controller
         # ----------------------------------------
-        angle_threshold = 0.174  # ~10 degrees
+        angle_threshold = 0.17  # ~10 degrees
 
         twist = Twist()
 
         # 1) Rotate first if not facing marker
-        if abs(yaw_error) > angle_threshold:
+        print("yaw_error",pitch_error)
+        if abs(pitch_error) > angle_threshold:
             twist.linear.x = 0.0
-            twist.angular.z = self.Ktheta * yaw_error
+            twist.angular.z = self.Ktheta * pitch_error
 
         # 2) Otherwise, walk straight forward
         else:
             distance_error = x_m - self.stop_distance
             twist.linear.x = self.Kx * distance_error
-            twist.angular.z = self.Ktheta * yaw_error
+            twist.angular.z = self.Ktheta * pitch_error
 
         # ----------------------------------------
         # Clamp
@@ -251,6 +272,9 @@ class AinexWalkToAruco(Node):
         twist.linear.y = 0.0
 
         self.cmd_vel_pub.publish(twist)
+
+    def _normalize_angle(self, angle):
+        return (angle + math.pi) % (2.0 * math.pi) - math.pi
 
 
 # --------------------------------------------------

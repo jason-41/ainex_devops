@@ -24,6 +24,7 @@
   
   <!-- custom msgs live in a separate package -->
   <depend>vision_interfaces</depend>
+  <depend>servo_service</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

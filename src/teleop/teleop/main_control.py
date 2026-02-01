@@ -21,6 +21,7 @@ from geometry_msgs.msg import PoseStamped
 from teleop.walk_to_Aruco import AinexWalkToAruco
 from teleop.turn_around import TurnAroundNode
 from teleop.grasp import AinexGraspNode
+from teleop.degrasp import AinexDegraspNode
 from teleop.crouch import CrouchNode
 # from ainex_controller.ainex_model import AiNexModel
 # from ainex_controller.ainex_robot import AinexRobot
@@ -138,9 +139,7 @@ class MainControlNode(Node):
             self.call_aruco(self.pickup_location)
             self.run_walk_to_aruco()
             # self.run_crouch()
-            self.run_grasp()
-            time.sleep(2)
-            self.run_stand()
+            active_side = self.run_grasp()
             time.sleep(2)
             self.run_stand()
             time.sleep(2)
@@ -152,6 +151,10 @@ class MainControlNode(Node):
             print("awakend")
             self.call_aruco(self.destination_location)
             self.run_walk_to_aruco()
+            
+            # Run Degrasp
+            self.run_degrasp(active_side)
+            time.sleep(5)
 
             self.state = "IDLE"
             self.current_instruction = None
@@ -185,14 +188,38 @@ class MainControlNode(Node):
 
     def run_grasp(self):
         """Run grasp node directly (executes complete grasp sequence)."""
+        active_side = None
         try:
             grasp_node = AinexGraspNode()
             # AinexGraspNode.__init__ calls self.run() automatically,
             # so the grasp sequence completes during initialization
+            if hasattr(grasp_node, 'active_side'):
+                active_side = grasp_node.active_side
             grasp_node.destroy_node()
-            self.get_logger().info("Grasp completed successfully.")
+            self.get_logger().info(f"Grasp completed successfully. Side: {active_side}")
         except Exception as e:
             self.get_logger().error(f"Grasp failed: {e}")
+        return active_side
+
+    def run_degrasp(self, active_side):
+        """Run degrasp node directly."""
+        if not active_side:
+            self.get_logger().warn("Skipping degrasp: no active side.")
+            return
+
+        try:
+            self.get_logger().info(f"Starting Degrasp for side: {active_side}")
+            degrasp_node = AinexDegraspNode()
+            degrasp_node.active_hand = active_side
+            # We skip waiting for grasp_done since we are sequencing it manually
+            degrasp_node.set_parameters([
+                rclpy.parameter.Parameter('wait_for_grasp_done', rclpy.Parameter.Type.BOOL, False)
+            ])
+            degrasp_node.run()
+            degrasp_node.destroy_node()
+            self.get_logger().info("Degrasp completed.")
+        except Exception as e:
+            self.get_logger().error(f"Degrasp failed: {e}")
 
     def run_stand(self, duration=3):
         """Make robot stand up."""

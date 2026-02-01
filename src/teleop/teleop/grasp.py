@@ -272,6 +272,7 @@ class AinexGraspNode(Node):
         # 2) Select arm
         # ---------------------------------------------------------
         arm_side = "left" if float(obj_pos[1]) > 0.0 else "right"
+        self.active_side = arm_side
         self.get_logger().info(f"Selected arm: {arm_side} (y={float(obj_pos[1]):.3f})")
 
         # ---------------------------------------------------------

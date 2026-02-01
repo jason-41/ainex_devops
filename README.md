@@ -1,5 +1,11 @@
 # how to run it:
-## Structure Guidance
+```bash
+ros2 service call /activate_walking std_srvs/srv/Empty {}
+```
+
+
+
+# Structure Guidance
 ```bash
 workspace/
 └── src/
@@ -71,3 +77,25 @@ face_detection_node:adapt the topic name to match your camera setup
 
 
 PS: If anyone want to use it, feel free to text me, i will send you the API KEY.
+
+
+#TODO: adjust format
+# How to run test
+# Usually needed if joints are locked:
+ros2 service call /Unlock_All_Joints std_srvs/Empty {}
+
+# When restarting the robot check if nodes are active by running “ros2 node list” it should print:
+/Joint_Control
+/camera_publisher
+/sensor_node
+/walking_node
+
+1. # First run main controller for the whole controller logic, the robot will then stand and wait for LLM topic:
+ros2 launch teleop main_control.launch.py
+
+2. # run vision nodes
+ros2 launch vision detector.launch.py 
+
+3. # 
+# Fake LLM topic publisher
+ros2 topic pub /instruction_after_llm servo_service/msg/InstructionAfterLLM '{object_color: "blue", object_shape: "cube", pickup_location: 33, destination_location: 25}'

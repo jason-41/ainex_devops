@@ -249,6 +249,7 @@ def main():
     node = None
     try:
         node = AinexDegraspNode()
+        node.run()
     except Exception as e:
         print(f"[ERROR] degrasp failed: {e}")
     finally:

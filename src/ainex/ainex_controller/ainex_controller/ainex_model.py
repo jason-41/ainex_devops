@@ -74,8 +74,8 @@ class AiNexModel:
         # Hint: take a look at the init function for hand ids
         self.x_left = self.data.oMf[self.left_hand_id].homogeneous
         self.x_right = self.data.oMf[self.right_hand_id].homogeneous
-        print("Left hand pose:\n", self.x_left)
-        print("Right hand pose:\n", self.x_right)
+        # print("Left hand pose:\n", self.x_left)
+        # print("Right hand pose:\n", self.x_right)
 
         # TODO: get end-effector Jacobians in pin.LOCAL_WORLD_ALIGNED frame
         self.J_left = pin.computeFrameJacobian(self.model, self.data, self.q, self.left_hand_id, pin.LOCAL_WORLD_ALIGNED)

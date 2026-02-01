@@ -86,7 +86,7 @@ class TurnAroundNode(Node):
         # Total duration strategy:
         # Simple open loop: just add startup time? Or assume effective motion starts late?
         # A simple heuristic: run for calculated time + compensation
-        total_duration = motion_duration + startup_compensation - 20
+        total_duration = motion_duration + startup_compensation - 0
         # total_duration = 60
 
         self.get_logger().info(

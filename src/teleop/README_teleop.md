@@ -23,6 +23,7 @@ ros2 launch ainex_description display.launch.py gui:=false
 ```
 
 ### or(if run on the real robot):
+
 ```bash
 ros2 run teleop hands_control --ros-args -p mode:=1 -p sim:=False
 ```
@@ -100,3 +101,5 @@ q_init = np.array([
             -2.22843647, -1.41162229, -0.03769911, -0.26808256,
             1.36758114, 0.10890855,  1.68389368,  0.74979347
         ], dtype=float)
+
+        Back to our grasping code, i want as the reaching process starts that the arm of the robot starts while opened
