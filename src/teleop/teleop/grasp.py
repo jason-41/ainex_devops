@@ -60,8 +60,8 @@ class AinexGraspNode(Node):
         self.declare_parameter("pre_y_off", 0.02)          # NEW
         self.declare_parameter("pre_z_off", 0.00)
 
-        self.declare_parameter("approach_x_off", 0.0005)
-        self.declare_parameter("approach_y_off", 0.005)      # NEW
+        self.declare_parameter("approach_x_off", 0.005)
+        self.declare_parameter("approach_y_off", 0.0005)      # NEW
         self.declare_parameter("lift_z", 0.10)
 
         # Durations
@@ -348,8 +348,8 @@ class AinexGraspNode(Node):
         # pre_y = side_sign * abs(pre_y)
         # approach_y = side_sign * abs(approach_y)
 
-        pre_pos = obj_pos + np.array([-pre_x+0.03, pre_y+0.01, pre_z+0.01], dtype=float)                 # UPDATED
-        approach_pos = obj_pos + np.array([-approach_x + 0.05, approach_y+0.02, 0.0+0.02], dtype=float)    # UPDATED
+        pre_pos = obj_pos + np.array([-pre_x, pre_y, pre_z], dtype=float)                 # UPDATED
+        approach_pos = obj_pos + np.array([-approach_x , approach_y, 0.0], dtype=float)    # UPDATED
         lift_pos = approach_pos + np.array([0.0, 0.0, lift_z], dtype=float)
 
         H_current = self.robot_model.right_hand_pose() if arm_side == "right" else self.robot_model.left_hand_pose()
@@ -373,8 +373,8 @@ class AinexGraspNode(Node):
         lift_duration = float(self.get_parameter("lift_duration").value)
 
         # thresholds
-        pre_th = 0.0015
-        app_th = 0.001
+        pre_th = 0.0050
+        app_th = 0.0001
         lift_th = 0.015
 
         # ---------------------------------------------------------
