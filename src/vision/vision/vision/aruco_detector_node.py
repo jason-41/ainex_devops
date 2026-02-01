@@ -15,7 +15,8 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import String
+from std_msgs.msg import String, Int32
+
 
 import tf_transformations
 
@@ -37,7 +38,7 @@ class ArucoDetectionNode(Node):
         self.bridge = CvBridge()
 
         # ================== parameter =================
-        self.allowed_ids = {18, 25}
+        self.target_aruco_id = None  # Dynamic target from /vision_target
         self.marker_length = 0.0485  # meter
 
         self.camera_frame = "camera_optical_link"
@@ -60,6 +61,13 @@ class ArucoDetectionNode(Node):
         # ================== 2. ROS interface ==================
         self.pub_pose = self.create_publisher(PoseStamped, "/aruco_pose", 10)
         self.pub_status = self.create_publisher(String, "/aruco_status", 10)
+
+        self.create_subscription(
+            Int32,
+            "/aruco_target",
+            self.aruco_target_callback,
+            10
+        )
 
         qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -94,6 +102,11 @@ class ArucoDetectionNode(Node):
 
         self.get_logger().info("[Aruco] Node started. Sub=/camera/image_undistorted")
 
+    def aruco_target_callback(self, msg):
+        """Update the target ID to look for based on main_control request."""
+        self.target_aruco_id = msg.data
+        self.get_logger().info(f"[Aruco] Set target ID to: {self.target_aruco_id}")
+
     # ==========================================================
     def image_callback(self, msg: Image):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
@@ -111,6 +124,9 @@ class ArucoDetectionNode(Node):
             self.publish_once("No marker detected.", state="NO_MARKER")
             cv2.rectangle(frame, (10, 10), (620, 130), (0, 0, 255), 2)
             self.overlay_lines = ["STATE: NO_MARKER", "ID: --", "POS: --", "ORI: --"]
+            if self.target_aruco_id is not None:
+                 self.overlay_lines.append(f"Target: {self.target_aruco_id}")
+
             for i, line in enumerate(self.overlay_lines):
                 self.draw_text(frame, line, 20, 40 + i * 30)
 
@@ -119,27 +135,37 @@ class ArucoDetectionNode(Node):
             return
 
         ids_list = [int(i) for i in ids.flatten().tolist()]
-        valid_ids = [i for i in ids_list if i in self.allowed_ids]
+        # Determine which ID to track
+        target_id = None
+        
+        # 1. If we have a specific target request from Main Control
+        if self.target_aruco_id is not None:
+            if self.target_aruco_id in ids_list:
+                target_id = self.target_aruco_id
+            else:
+                # Target not found in this frame
+                error_msg = f"LOOKING FOR {self.target_aruco_id}, FOUND {ids_list}"
+                self.publish_once(error_msg, state="WRONG_ID")
+                
+                cv2.rectangle(frame, (10, 10), (620, 130), (0, 0, 255), 2)
+                self.overlay_lines = [
+                    "TARGET NOT FOUND",
+                    f"Target: {self.target_aruco_id}",
+                    f"Visible: {ids_list}"
+                ]
+                for i, line in enumerate(self.overlay_lines):
+                    self.draw_text(frame, line, 20, 40 + i * 40)
+                    
+                aruco.drawDetectedMarkers(frame, corners, ids)
+                cv2.imshow("Aruco Detection", frame)
+                cv2.waitKey(1)
+                return
 
-        if not valid_ids:
-            error_msg = f"WRONG ID = {ids_list}"
-            self.publish_once(error_msg, state="WRONG_ID")
+        # 2. If no specific target, accept the first detected marker
+        else:
+            target_id = ids_list[0]
 
-            cv2.rectangle(frame, (10, 10), (620, 130), (0, 0, 255), 2)
-            self.overlay_lines = [
-                "WRONG ID",
-                f"ids: {ids_list}",
-            ]
-            for i, line in enumerate(self.overlay_lines):
-                self.draw_text(frame, line, 20, 40 + i * 40)
-
-            aruco.drawDetectedMarkers(frame, corners, ids)
-
-            cv2.imshow("Aruco Detection", frame)
-            cv2.waitKey(1)
-            return
-
-        target_id = valid_ids[0]
+        # Found a target_id to process
         idx = ids_list.index(target_id)
 
 

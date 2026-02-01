@@ -13,6 +13,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 from std_msgs.msg import String
+from servo_service.msg import InstructionAfterLLM
 from sensor_msgs.msg import CameraInfo, Image
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
@@ -104,6 +105,8 @@ class TargetObjectDetectorNode(Node):
 
         self.target_shape = None
         self.target_color = None
+        self.llm_shape = None
+        self.llm_color = None
 
         # cube center continuity
         self.last_center_tvec = None
@@ -125,6 +128,7 @@ class TargetObjectDetectorNode(Node):
         self.create_subscription(CameraInfo, "/camera_info", self.cb_caminfo, qos_profile_sensor_data)
         self.create_subscription(String, "/detected_objects_raw", self.cb_det_raw, 10)
         self.create_subscription(Image, "/camera/image_undistorted", self.cb_image, qos_profile_sensor_data)
+        self.create_subscription(InstructionAfterLLM, "instruction_after_llm", self.cb_llm, 10)
 
         self.timer = self.create_timer(0.1, self.on_timer)
         cv2.namedWindow("TargetObjectDetector", cv2.WINDOW_NORMAL)
@@ -188,6 +192,13 @@ class TargetObjectDetectorNode(Node):
         self.detections.append(det)
         self.detections = self.detections[-200:]
 
+    def cb_llm(self, msg: InstructionAfterLLM):
+        self.llm_color = str(msg.object_color).lower()
+        self.llm_shape = str(msg.object_shape).lower()
+        self.get_logger().info(
+            f"[LLM] target updated -> color={self.llm_color}, shape={self.llm_shape}"
+        )
+
     # ============================ main loop ============================
 
     def on_timer(self):
@@ -196,8 +207,9 @@ class TargetObjectDetectorNode(Node):
             self.draw_debug(None, "NO CAMERA")
             return
 
-        self.target_shape = self.get_parameter("target_shape").value.lower()
-        self.target_color = self.get_parameter("target_color").value.lower()
+        # prefer LLM instruction if available; fallback to params
+        self.target_shape = self.llm_shape or self.get_parameter("target_shape").value.lower()
+        self.target_color = self.llm_color or self.get_parameter("target_color").value.lower()
 
         now = self.ros_now_s()
         fresh_timeout = float(self.get_parameter("fresh_timeout_s").value)
