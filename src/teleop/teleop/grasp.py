@@ -58,7 +58,7 @@ class AinexGraspNode(Node):
         # Offsets in base frame
         self.declare_parameter("pre_x_off", 0.02)
         self.declare_parameter("pre_y_off", 0.02)          # NEW
-        self.declare_parameter("pre_z_off", 0.015)
+        self.declare_parameter("pre_z_off", 0.00)
 
         self.declare_parameter("approach_x_off", 0.0005)
         self.declare_parameter("approach_y_off", 0.005)      # NEW
@@ -97,7 +97,7 @@ class AinexGraspNode(Node):
         # INITIAL POSTURE
         # ----------------------------
         q_init = np.array([
-            -0.18, -0.96,
+            -0.3, -0.96,
             0.031416, -0.004189, -0.879646, 2.280796, 1.451416, 0.033510,
             -0.064926, -0.942419, -0.129853, -1.625251, 0.222,
             -0.031416, 0.004189, 0.879646, -2.280796, -1.451416, -0.033510,
@@ -316,10 +316,30 @@ class AinexGraspNode(Node):
         pre_y = float(self.get_parameter("pre_y_off").value)               # NEW
         pre_z = float(self.get_parameter("pre_z_off").value)
 
+        # ----------------------------
+        # Safety shaping for LEFT arm near center
+        # ----------------------------
         
-
         approach_x = float(self.get_parameter("approach_x_off").value)
         approach_y = float(self.get_parameter("approach_y_off").value)     # NEW
+
+        # obj_y = float(obj_pos[1])
+        # obj_z = float(obj_pos[2])
+        # if arm_side == "left":
+        #     # If object is too close to centerline, force a more "outside" lateral path
+        #     Y_MIN_LEFT = 0.05     # 5 cm outward
+        #     if obj_y < Y_MIN_LEFT:
+        #         # Ensure PRE and APPROACH are not near the center
+        #         pre_y = max(pre_y, Y_MIN_LEFT - obj_y + 0.02)         # add extra margin
+        #         approach_y = max(approach_y, Y_MIN_LEFT - obj_y)      # keep approach outside
+
+        #     # Prevent very low approach that tends to hit the knee region
+        #     Z_MIN_APPROACH = -0.01  # don't go too low (tune)
+        #     # raise PRE more than APPROACH
+        #     pre_z = max(pre_z, (Z_MIN_APPROACH - obj_z) + 0.03)
+
+        
+
         lift_z = float(self.get_parameter("lift_z").value)
 
         # If you prefer "magnitudes" only, uncomment this to auto-apply side sign:
@@ -327,8 +347,8 @@ class AinexGraspNode(Node):
         # pre_y = side_sign * abs(pre_y)
         # approach_y = side_sign * abs(approach_y)
 
-        pre_pos = obj_pos + np.array([-pre_x, pre_y, pre_z], dtype=float)                 # UPDATED
-        approach_pos = obj_pos + np.array([-approach_x, approach_y, 0.0], dtype=float)    # UPDATED
+        pre_pos = obj_pos + np.array([-pre_x+0.03, pre_y+0.01, pre_z+0.01], dtype=float)                 # UPDATED
+        approach_pos = obj_pos + np.array([-approach_x + 0.05, approach_y+0.02, 0.0+0.02], dtype=float)    # UPDATED
         lift_pos = approach_pos + np.array([0.0, 0.0, lift_z], dtype=float)
 
         H_current = self.robot_model.right_hand_pose() if arm_side == "right" else self.robot_model.left_hand_pose()
@@ -352,8 +372,8 @@ class AinexGraspNode(Node):
         lift_duration = float(self.get_parameter("lift_duration").value)
 
         # thresholds
-        pre_th = 0.015
-        app_th = 0.010
+        pre_th = 0.0015
+        app_th = 0.001
         lift_th = 0.015
 
         # ---------------------------------------------------------
