@@ -34,24 +34,24 @@ class RawDetection:
 
 
 # ============================ helpers ============================
-# 定义这个顺序：左上、右上、右下、左下（为了和 obj_pts 对应）
 def order_quad_points(pts_4x2: np.ndarray) -> np.ndarray:
     pts = np.asarray(pts_4x2, dtype=np.float64).reshape(4, 2)
 
-    # 常见排序法：通过 (x+y) 和 (y-x) 的极值来区分四角
-    s = pts.sum(axis=1)               # x+y
-    d = (pts[:, 1] - pts[:, 0])       # y-x
+    # Common heuristic:
+    #   x + y  -> distinguish top-left / bottom-right
+    #   y - x  -> distinguish top-right / bottom-left
+    s = pts.sum(axis=1)               # x + y
+    d = (pts[:, 1] - pts[:, 0])       # y - x
 
-    tl = pts[np.argmin(s)]            # 最小 x+y
-    br = pts[np.argmax(s)]            # 最大 x+y
-    tr = pts[np.argmin(d)]            # 最小 y-x  -> 右上（注意：依赖坐标系定义）
-    bl = pts[np.argmax(d)]            # 最大 y-x  -> 左下
+    tl = pts[np.argmin(s)]            # smallest x + y
+    br = pts[np.argmax(s)]            # largest  x + y
+    tr = pts[np.argmin(d)]            # smallest y - x
+    bl = pts[np.argmax(d)]            # largest  y - x
 
     return np.array([tl, tr, br, bl], dtype=np.float64)
 
 
 def rvec_to_quat(rvec: np.ndarray) -> Tuple[float, float, float, float]:
-    """solvePnP 的 rvec（可见面朝向）转成四元数 (x,y,z,w)，用于发布 cube 的 orientation。"""
     R, _ = cv2.Rodrigues(rvec)
     T = np.eye(4)
     T[:3, :3] = R
@@ -74,19 +74,17 @@ class TargetObjectDetectorNode(Node):
         # IMPORTANT: must match the real cube side length (meters)
         self.declare_parameter("cube_size_m", 0.035)
 
-        # ---------- timing + filtering ----------
-        # 只保留0.3s以内检测结果；然后在最新那批里只用最新50ms窗口
+        # ---------- timing and filtering ----------
+        # Keep detections within 0.3 s, and use only the latest 50 ms window
         self.declare_parameter("latest_window_s", 0.05)   # 50ms
         self.declare_parameter("fresh_timeout_s", 0.30)
 
         # EMA low-pass (position)
         # x_ema = (1-a)*x_ema + a*x_raw
-        self.declare_parameter("ema_alpha", 0.10)         # 0.15~0.30 更灵敏但更抖
-
+        self.declare_parameter("ema_alpha", 0.10)      
         # optional outlier gate
         self.declare_parameter("enable_outlier_gate", False)
-        self.declare_parameter("max_jump_m", 0.05)        # 单次跳变>5cm就拒绝
-
+        self.declare_parameter("max_jump_m", 0.05)    
         self.camera_frame = self.get_parameter("camera_frame").value
 
         # ---------------- state ----------------
@@ -124,7 +122,6 @@ class TargetObjectDetectorNode(Node):
         self.pub_picked_pose = self.create_publisher(PoseStamped, "/picked_object_pose", 10)
 
         # ---------------- subs ----------------
-        # camera_info 用 sensor_data QoS 是合理的（相机数据允许丢帧，追求低延迟）
         self.create_subscription(CameraInfo, "/camera_info", self.cb_caminfo, qos_profile_sensor_data)
         self.create_subscription(String, "/detected_objects_raw", self.cb_det_raw, 10)
         self.create_subscription(Image, "/camera/image_undistorted", self.cb_image, qos_profile_sensor_data)
@@ -138,7 +135,6 @@ class TargetObjectDetectorNode(Node):
     # ============================ time helpers ============================
 
     def ros_now_s(self) -> float:
-        # 当前 ROS time（秒）
         return self.get_clock().now().nanoseconds / 1e9
 
     # ============================ callbacks ============================
@@ -149,9 +145,6 @@ class TargetObjectDetectorNode(Node):
 
         # K: 3x3 camera matrix
         self.K = np.array(msg.k, dtype=np.float64).reshape(3, 3)
-
-        # IMPORTANT:
-        # 你的输入图像是 /camera/image_undistorted（已经去畸变）所以 solvePnP 不应该再使用畸变参数，否则会“重复补偿”导致Z崩
         self.D = np.zeros((5, 1), dtype=np.float64)
         self.have_caminfo = True
         self.publish_status_once("CAMERA INFO OK ")
@@ -258,7 +251,7 @@ class TargetObjectDetectorNode(Node):
                     t_filtered = self.filter_tvec(tvec.reshape(3))
                     pose.pose.position.x = float(t_filtered[0])
                     pose.pose.position.y = float(t_filtered[1])
-                    pose.pose.position.z = float(t_filtered[2])   # <<< 不要再做 20/35 这种硬缩放
+                    pose.pose.position.z = float(t_filtered[2]) 
                     if self.target_shape == "cube":
                         pose.pose.position.z = (pose.pose.position.z-0.01)*2/3+0.01
                     self.pub_pose.publish(pose)
@@ -278,7 +271,11 @@ class TargetObjectDetectorNode(Node):
         self.draw_debug(target, status, rvec, tvec, fresh=dets_latest, uniq_candidates=uniq_candidates)
 
     # ============================ uniq merge ============================
-
+        """
+        Merge duplicate detections that correspond to the same physical object.
+        Among matching detections, keep the most reliable one (largest radius for circles,
+        largest bounding-box area for cubes).
+        """
     def merge_detections(self, dets: List[RawDetection]) -> List[RawDetection]:
         uniq: List[RawDetection] = []
         for d in dets:
@@ -304,7 +301,9 @@ class TargetObjectDetectorNode(Node):
             return -1.0
         _, _, w, h = d.bbox
         return float(w) * float(h)
-
+        
+    # Select a single target from unique detections based on the desired shape.
+    # The largest candidate is chosen (radius for circles, area for cubes),with hysteresis applied to avoid frequent target switching.
     def pick_target_from_uniq(self, uniq_matches: List[RawDetection], want_shape: str) -> Optional[RawDetection]:
         if not uniq_matches:
             self.last_picked_det = None
@@ -360,6 +359,8 @@ class TargetObjectDetectorNode(Node):
         return chosen
 
     # ============================ pose estimation ============================
+    # Estimate the 3D position of a cube from its 2D bounding box and image center.
+    # The depth is inferred from the apparent cube size using a pinhole camera model.
     def pose_from_cube(self, det: RawDetection):
         if det.bbox is None or det.center_uv is None:
             return None, None, None
@@ -367,12 +368,10 @@ class TargetObjectDetectorNode(Node):
         x, y, w, h = det.bbox
         u, v = det.center_uv
 
-        # 使用 bbox 的“较短边”作为可见正方形边长（更稳）
         s_px = min(w, h)
         if s_px < 5:
             return None, None, None
 
-        # cube 实际边长（你说这个是对的）
         S = float(self.get_parameter("cube_size_m").value)
 
         fx = float(self.K[0, 0])
@@ -380,14 +379,11 @@ class TargetObjectDetectorNode(Node):
         cx = float(self.K[0, 2])
         cy = float(self.K[1, 2])
 
-        # 深度（核心）
-        Z = fx * S / s_px
 
-        # 反投影
+        Z = fx * S / s_px
         X = (u - cx) * Z / fx
         Y = (v - cy) * Z / fy
 
-        # 合理性检查
         if Z < 0.05 or Z > 2.0:
             self.get_logger().warn(f"[cube] Unreasonable Z = {Z:.3f} m")
             return None, None, None
@@ -400,7 +396,6 @@ class TargetObjectDetectorNode(Node):
         ps.pose.position.y = float(Y)
         ps.pose.position.z = float(Z)
 
-        # 不算姿态，给单位四元数
         ps.pose.orientation.x = 0.0
         ps.pose.orientation.y = 0.0
         ps.pose.orientation.z = 0.0
@@ -409,7 +404,8 @@ class TargetObjectDetectorNode(Node):
         tvec = np.array([[X], [Y], [Z]], dtype=np.float64)
         return ps, None, tvec
 
-
+    # Estimate the 3D position of a circular object from its image center and radius.
+    # The depth is computed assuming a known physical radius and a pinhole camera model.
     def pose_from_circle(self, det: RawDetection):
         if det.center_uv is None or det.radius_px <= 1.0:
             return None, None, None
@@ -429,7 +425,6 @@ class TargetObjectDetectorNode(Node):
         X = (u - cx) * Z / fx
         Y = (v - cy) * Z / fy
 
-        # 合理性检查：Z 应该在 0.10m ~ 2.0m 范围内
         if Z < 0.10 or Z > 2.0:
             self.get_logger().warn(f"[pose_from_circle] Unreasonable Z = {Z:.3f} m (should be 0.10~2.0)")
 
@@ -449,6 +444,8 @@ class TargetObjectDetectorNode(Node):
         return ps, None, tvec
 
     # ============================ filtering ============================
+    # Apply exponential moving average (EMA) filtering to the raw 3D position.
+    # Optionally reject outliers based on a maximum allowed position jump.
 
     def filter_tvec(self, t_raw: np.ndarray) -> np.ndarray:
         alpha = float(self.get_parameter("ema_alpha").value)
@@ -544,7 +541,6 @@ class TargetObjectDetectorNode(Node):
                 r = int(det.radius_px)
                 cv2.circle(frame, (cx, cy), r, (0, 255, 0), 3)
                 cv2.circle(frame, (cx, cy), 3, (0, 0, 255), -1)
-                # Circle 的 3D 中心投影
                 if tvec is not None and self.K is not None and tvec.size >= 3:
                     X, Y, Z = float(tvec[0]), float(tvec[1]), float(tvec[2])
                     if Z > 1e-6:
@@ -553,13 +549,11 @@ class TargetObjectDetectorNode(Node):
                         u3 = int(fx * X / Z + cx_k)
                         v3 = int(fy * Y / Z + cy_k)
                         if 0 <= u3 < frame.shape[1] and 0 <= v3 < frame.shape[0]:
-                            cv2.circle(frame, (u3, v3), 6, (255, 255, 0), 2)  # 青色圆环
+                            cv2.circle(frame, (u3, v3), 6, (255, 255, 0), 2)  
                             cv2.putText(frame, "3D center", (u3 + 6, v3 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 0), 1)
             elif det.shape == "cube" and det.bbox is not None:
                 x, y, w, h = det.bbox
-                # 最大外框（绿框）
                 cv2.rectangle(frame, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), 3)
-                # 发布用的 cube 真实 3D 中心投影到图像（绿点）
                 if tvec is not None and self.K is not None and tvec.size >= 3:
                     X, Y, Z = float(tvec[0]), float(tvec[1]), float(tvec[2])
                     if Z > 1e-6:
@@ -574,9 +568,8 @@ class TargetObjectDetectorNode(Node):
         if self.ema_t is not None:
             xyz_txt = f"XYZ = [{self.ema_t[0]:.3f}, {self.ema_t[1]:.3f}, {self.ema_t[2]:.3f}] m"
             cv2.putText(frame, xyz_txt, (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2)
-            # 单独显示深度 Z（更醒目）
             z_txt = f"Depth Z = {self.ema_t[2]:.3f} m"
-            z_color = (0, 255, 0) if 0.1 < self.ema_t[2] < 1.0 else (0, 0, 255)  # 绿色=正常，红色=异常
+            z_color = (0, 255, 0) if 0.1 < self.ema_t[2] < 1.0 else (0, 0, 255) 
             cv2.putText(frame, z_txt, (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, z_color, 2)
 
         cv2.imshow("TargetObjectDetector", frame)

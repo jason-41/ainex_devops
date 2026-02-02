@@ -72,14 +72,8 @@ class ObjectDetectorNode(Node):
     @staticmethod
     def clean(mask):
         kernel = np.ones((5, 5), np.uint8)
-
-        # 1) 去掉小噪声
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-
-        # 2) 关键：把断裂的区域“连起来”，补洞
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-
-        # 3) 轻微膨胀，保证边缘连续
         mask = cv2.dilate(mask, kernel, iterations=1)
 
         return mask
@@ -140,7 +134,7 @@ class ObjectDetectorNode(Node):
         msg.data = json.dumps(data)
         self.pub_raw.publish(msg)
 
-    # ---------------- Circle detector ---------------- #检测设置在15-50cm的视野内
+    # ---------------- Circle detector ---------------- 
 
     # def detect_circles(self, frame, display, mask=None):
     def detect_circles(self, frame, display, mask=None, color_name="unknown"):
@@ -211,7 +205,7 @@ class ObjectDetectorNode(Node):
             
             # ---  (Classifier) ---
             peri = cv2.arcLength(c, True)
-            epsilon = 0.05 * peri  #参数可以调，如果距离近了漏掉了的话可以调大
+            epsilon = 0.05 * peri  
             approx = cv2.approxPolyDP(c, epsilon, True)
            
             if len(approx) != 4:
@@ -263,9 +257,9 @@ class ObjectDetectorNode(Node):
             )
 
     def object_detect(self, frame):
-        # ========== ROI (central 95%) ==========
+        # ========== ROI (central 90%) ==========
         H, W = frame.shape[:2]
-        roi_scale = 0.9  # central 95%
+        roi_scale = 0.9  # central 90%
 
         roi_w = int(W * roi_scale)
         roi_h = int(H * roi_scale)
@@ -293,10 +287,10 @@ class ObjectDetectorNode(Node):
         mask_b = cv2.bitwise_and(self.get_blue_mask(hsv), roi_mask)
         mask_p = cv2.bitwise_and(self.get_purple_mask(hsv), roi_mask)
 
-        # cv2.imshow("RED Mask", mask_r)
-        # cv2.imshow("GREEN Mask", mask_g)
-        # cv2.imshow("BLUE Mask", mask_b)
-        # cv2.imshow("PURPLE Mask", mask_p)
+        #cv2.imshow("RED Mask", mask_r)
+        #cv2.imshow("GREEN Mask", mask_g)
+        #cv2.imshow("BLUE Mask", mask_b)
+        #cv2.imshow("PURPLE Mask", mask_p)
         # cv2.imshow("ROI Mask", roi_mask)
 
         # ========== shape detection ==========
@@ -306,9 +300,8 @@ class ObjectDetectorNode(Node):
         cv2.rectangle(win_circle, (x1, y1), (x2, y2), (50, 50, 50), 2)
         cv2.rectangle(win_cube,   (x1, y1), (x2, y2), (50, 50, 50), 2)
 
-        # ---- Circles: 你这里如果只需要 purple circle，就只保留 mask_p 这一行 ----
+        # ---- Circles----
         # self.detect_circles(frame, win_circle, mask_p)
-        # 如果你想“任何颜色都可能是圆”，那就四个都跑：
         # self.detect_circles(frame, win_circle, mask_p)
         # self.detect_circles(frame, win_circle, mask_g)
         # self.detect_circles(frame, win_circle, mask_r)

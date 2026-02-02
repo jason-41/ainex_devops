@@ -122,7 +122,7 @@ class ArucoDetectionNode(Node):
 
         if ids is None or len(ids) == 0:
             self.publish_once("No marker detected.", state="NO_MARKER")
-            cv2.rectangle(frame, (10, 10), (620, 130), (0, 0, 255), 2)
+            # cv2.rectangle(frame, (10, 10), (620, 130), (0, 0, 255), 2)
             self.overlay_lines = ["STATE: NO_MARKER", "ID: --", "POS: --", "ORI: --"]
             if self.target_aruco_id is not None:
                  self.overlay_lines.append(f"Target: {self.target_aruco_id}")
@@ -147,7 +147,7 @@ class ArucoDetectionNode(Node):
                 error_msg = f"LOOKING FOR {self.target_aruco_id}, FOUND {ids_list}"
                 self.publish_once(error_msg, state="WRONG_ID")
                 
-                cv2.rectangle(frame, (10, 10), (620, 130), (0, 0, 255), 2)
+                # cv2.rectangle(frame, (10, 10), (620, 130), (0, 0, 255), 2)
                 self.overlay_lines = [
                     "TARGET NOT FOUND",
                     f"Target: {self.target_aruco_id}",
@@ -184,11 +184,6 @@ class ArucoDetectionNode(Node):
         x, y, z = self.tvec_filt.flatten().tolist()
 
         # ================== MANUAL CALIBRATION (scale + bias) ==================
-        # 说明：
-        #   x,y,z 仍然是 camera_optical_link 下的数值（X右 Y下 Z前）
-        #   这里只是“数值校正”，不改变检测流程
-        #
-        # 用法：
         #   x_cal = sx*x + bx
         #   y_cal = sy*y + by
         #   z_cal = sz*z + bz
