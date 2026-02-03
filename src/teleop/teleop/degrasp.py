@@ -39,8 +39,8 @@ class AinexDegraspNode(Node):
         self.declare_parameter("grasp_done_topic", "/grasp_done")
 
         # Behavior
-        self.declare_parameter("wait_for_grasp_done", True)  # wait until grasp finished
-        self.declare_parameter("forward_x", 0.1)            # move forward 8 cm
+        self.declare_parameter("wait_for_grasp_done", False)  # wait until grasp finished
+        self.declare_parameter("forward_x", 0.2)            # move forward 8 cm
         self.declare_parameter("move_duration", 2.0)         # seconds for the forward motion
         self.declare_parameter("settle_s", 0.15)             # small pause before opening
 

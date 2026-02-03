@@ -79,12 +79,17 @@ ros2 launch teleop main_control.launch.py
 ### Fake LLM topic publisher
 - you can change the color between [blue, green, red, purple], the shape between [cube, circle]
 ```bash
-ros2 topic pub /instruction_after_llm servo_service/msg/InstructionAfterLLM '{object_color: "blue", object_shape: "cube", pickup_location: 33, destination_location: 25}'
+ros2 topic pub /instruction_after_llm servo_service/msg/InstructionAfterLLM '{object_color: "green", object_shape: "cube", pickup_location: 33, destination_location: 25}'
 ```
 ### Prepare to walk
 ```bash
 ros2 service call /activate_walking std_srvs/srv/Empty {}
+ros2 service call /deactivate_walking std_srvs/srv/Empty {}
 ```
+
+export PYTHONPATH=/home/hrs2025/Documents/codeLibrary/groupE_final/groupE_final/groupE_venv/lib/python3.12/site-packages:$PYTHONPATH
+
+
 ### Lock or Unlock the joint
 ```bash
 ros2 service call /Unlock_All_Joints std_srvs/Empty {}

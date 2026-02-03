@@ -15,7 +15,7 @@ class TurnAroundNode(Node):
         super().__init__("turn_around_node")
 
         self.declare_parameter("speed", 0.05)
-        self.declare_parameter("degrees", 180.0)
+        self.declare_parameter("degrees", 30.0)
         self.declare_parameter("sim", True)
 
         self.speed = self.get_parameter("speed").value

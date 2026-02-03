@@ -317,8 +317,8 @@ class ObjectDetectorNode(Node):
         self.detect_cubes_from_mask(frame, mask_g, win_cube, color_name="green", label="Cube")
         self.detect_cubes_from_mask(frame, mask_b, win_cube, color_name="blue",  label="Cube")
 
-        cv2.imshow("Circle Detector", win_circle)
-        cv2.imshow("Cube Detector", win_cube)
+        # cv2.imshow("Circle Detector", win_circle)
+        # cv2.imshow("Cube Detector", win_cube)
 
         cv2.waitKey(1)
 

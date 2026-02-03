@@ -36,7 +36,7 @@ def generate_launch_description():
     )
     
     return LaunchDescription([
+        deactivate_walking,
         activate_walking,
-        main_control_node,
-        deactivate_walking
+        main_control_node
     ])

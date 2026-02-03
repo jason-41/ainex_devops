@@ -266,7 +266,7 @@ class FaceDetectionNode(Node):
                     
                     # threshold for recognition, the threshold could be setted bigger if you want to make the authetication less strict
                     #cause our ainex camera is not very precise
-                    if distance < 0.55: 
+                    if distance < 0.45: 
                         self.known_face_counter += 1
                         self.get_logger().info(
                             f"Known face detected ({self.known_face_counter}/"

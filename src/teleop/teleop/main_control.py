@@ -143,13 +143,9 @@ class MainControlNode(Node):
             time.sleep(2)
             self.run_stand()
             time.sleep(2)
-            self.run_turn_around(180.0)
-
-            print("sleeping")
-            time.sleep(5)
-
-            print("awakend")
             self.call_aruco(self.destination_location)
+            self.run_turn_around(330.0)
+
             self.run_walk_to_aruco()
             
             # Run Degrasp
