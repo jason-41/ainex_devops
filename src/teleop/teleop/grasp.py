@@ -288,6 +288,14 @@ class AinexGraspNode(Node):
         self.hand_ctrl.dls_lambda = 0.03
         self.hand_ctrl.u_alpha = 0.25
 
+        
+        # Optional nullspace singularity avoidance (default OFF)
+        self.hand_ctrl.enable_nullspace_potential = False
+        self.hand_ctrl.ks_null = 2.0e-2     # start small; increase gradually
+        self.hand_ctrl.mth_null = 8.0e-5    # threshold where avoidance activates
+        self.hand_ctrl.null_eps = 1.0e-3    # finite diff step
+        self.hand_ctrl.null_max = 0.4       # cap nullspace speed
+
         # ---------------------------------------------------------
         # 4) Setup active gripper indices + open/close values
         # ---------------------------------------------------------
