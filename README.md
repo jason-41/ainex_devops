@@ -113,7 +113,6 @@ asr_node:adapt the microphone id to your own one, if needed
 3. (ainex_vision):
 face_detection_node:adapt the topic name to match your camera setup
 
-
-
-PS: If anyone want to use it, feel free to text me, i will send you the API KEY.
+#TODO 06-02-2026
+The repo was forked from the final archived version of Yuan Zhao. Now I (jason-41) should edit this README.md to record what contributions I have made in this project.
 
