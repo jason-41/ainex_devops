@@ -19,7 +19,7 @@ workspace/
 ```
 
 # Env settings
-- There is several version conflictions, so please follow this installation flow
+- There are several version conflictions, so please follow this installation flow
 ```bash
     # order matters!
 	python3 -m venv groupE_venv --symlinks
