@@ -113,6 +113,5 @@ asr_node:adapt the microphone id to your own one, if needed
 3. (ainex_vision):
 face_detection_node:adapt the topic name to match your camera setup
 
-#TODO 06-02-2026
-The repo was forked from the final archived version of Yuan Zhao. Now I (jason-41) should edit this README.md to record what contributions I have made in this project.
+COntributions of me: Design of the overall control systems (simple state machine), train the grasping process using reinforcement learning(PPO), system integration and final testing/validation.
 
