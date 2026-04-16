@@ -1,10 +1,6 @@
 # Structure Guidance
 
-## 项目技术栈速览（可直接用于 CV / GitHub Profile）
-
-> 为减少中英文来回切换，以下按 **英文整段在前，中文整段在后** 的形式组织。
-
-### English Version
+### Tech stack and project overview - English Version
 
 #### 1) System & Middleware
 - **ROS 2 Jazzy + colcon**: Built as a multi-package workspace with mixed `ament_python` / `ament_cmake` build types.
@@ -35,7 +31,7 @@
 
 ---
 
-### 中文版本
+### 项目技术栈速览-中文版本
 
 #### 1) 系统与中间件
 - **ROS 2 Jazzy + colcon**：基于多 package 工作空间组织，采用 `ament_python` / `ament_cmake` 混合构建。
@@ -177,4 +173,4 @@ asr_node:adapt the microphone id to your own one, if needed
 3. (ainex_vision):
 face_detection_node:adapt the topic name to match your camera setup
 
-Contributions of me: Design of the overall control systems (simple state machine), train the grasping process using reinforcement learning(PPO), system integration and final testing/validation.
+My contributions: Design of the overall control systems (simple state machine), train the grasping process using reinforcement learning(PPO), system integration and final testing/validation.
