@@ -28,7 +28,7 @@ This is a team project repository for the cource Humanoid Robotics Systems offer
 - **Python robot-control stack**: Multi-node coordination is implemented with `rclpy`.
 - **Kinematics & trajectory**: Uses **Pinocchio + NumPy + SciPy Rotation** for pose computation and end-effector trajectory handling.
 - **Execution pipeline**: Custom messages/services (`servo_service`) are used to drive joint and posture control.
-- The grasp controller is task-space driven: the desired end-effector trajectory is generated in Cartesian space, a PD law produces the desired Cartesian velocity, DLS inverse kinematics maps it to joint velocities, and these are integrated into joint position setpoints for the servo interface.
+- The grasp controller is task-space driven: the desired end-effector trajectory is generated in Cartesian space, a PD law produces the desired Cartesian velocity, DLS inverse kinematics maps it to joint velocities, and these are integrated into joint position setpoints for the servo interface (Due to the nature of the robot, one can only send joint position commands to the robot by ROS2 communication).
 
 #### 3) Perception & Vision
 - **OpenCV + cv_bridge**: Handles image ingestion, preprocessing, and target recognition.
@@ -52,7 +52,7 @@ My contributions: Design of the overall control systems (simple state machine), 
 - **Python 机器人控制栈**：使用 `rclpy` 编写多节点协同控制逻辑。
 - **运动学/轨迹**：使用 **Pinocchio + NumPy + SciPy Rotation** 进行位姿计算与末端执行轨迹处理。
 - **执行链路**：通过自定义消息/服务（`servo_service`）驱动关节与姿态控制。
-- 抓取控制器是任务空间驱动的：先在笛卡尔空间生成末端参考轨迹，通过 PD 得到末端期望速度，再经 DLS 逆运动学映射为关节速度，最后将其积分为关节位置设定值发送给伺服。
+- 抓取控制器是任务空间驱动的：先在笛卡尔空间生成末端参考轨迹，通过 PD 得到末端期望速度，再经 DLS 逆运动学映射为关节速度，最后将其积分为关节位置设定值发送给伺服（由于机器人的限制，只能由电脑经ros2发送关节坐标信息给机器人）。
 
 #### 3) 感知与视觉
 - **OpenCV + cv_bridge**：图像接入、预处理与目标识别。
