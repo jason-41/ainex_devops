@@ -1,16 +1,22 @@
-# Structure Guidance
+#  Project Description
 ### Project overview
+This is a team project repository for the cource Humanoid Robotics Systems offered in winter semester of 2025 by Prof. Gordon Cheng of Institute for Cognitive Systems at Technical University of Munich. The project is based on a commercial robot model "AiNex Biped Humanoid Robot" and secondary development was conducted in order to achieve the course final group project.  
+<img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/68451164-dedd-4e9b-9ad3-4782b5561f56" />
+
+### Project summary
 (English)
 - Built a **ROS 2-based humanoid manipulation pipeline** integrating perception, locomotion, and grasp control in a modular multi-node architecture.
+- Integrated **LLM + speech interface** (ASR/TTS) to translate natural language instructions into executable robot actions.
 - Implemented **Aruco-guided navigation and target-object localization** with OpenCV, enabling autonomous approach and pick-and-place behaviors.
 - Developed **kinematics-driven arm/hand control** with Pinocchio and trajectory interpolation for stable grasp/degrasp execution.
-- Integrated **LLM + speech interface** (ASR/TTS) to translate natural language instructions into executable robot actions.
+- Developed a robotic grasping pipeline in Gazebo; leveraged the manufacturer-provided URDF and Pinocchio for robot kinematics/dynamics computation, and trained the policy with reinforcement learning (PPO).
 
 (Chinese)
 - 构建了基于 **ROS 2** 的人形机器人操作流水线，在模块化多节点架构中集成感知、移动与抓取控制。
+- 集成 **LLM + 语音接口**（ASR/TTS），将自然语言指令转换为可执行机器人动作。
 - 基于 OpenCV 实现 **Aruco 引导导航与目标定位**，支持机器人自主接近与抓取放置。
 - 基于 Pinocchio 与轨迹插值开发 **运动学驱动的手臂/手部控制**，实现稳定抓取与释放。
-- 集成 **LLM + 语音接口**（ASR/TTS），将自然语言指令转换为可执行机器人动作。
+- 使用 Gazebo 搭建机器人抓取仿真环境，基于厂家提供的 URDF，利用 Pinocchio 进行运动学/动力学计算，并采用强化学习的PPO算法训练抓取策略。
 
 ### Tech stack
 (English)
