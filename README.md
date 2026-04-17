@@ -3,6 +3,11 @@
 This is a team project repository for the cource Humanoid Robotics Systems offered in winter semester of 2025 by Prof. Gordon Cheng of Institute for Cognitive Systems at Technical University of Munich. The project is based on an off‑the‑shelf robot model "AiNex Biped Humanoid Robot" and secondary development was conducted in order to achieve the course's final group project.  
 <img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/68451164-dedd-4e9b-9ad3-4782b5561f56" />
 
+#### My contributions: 
+Design of the overall control systems (simple state machine), train the grasping policy using reinforcement learning(PPO), system integration and final testing/validation. 
+#### 我的主要贡献包括：
+设计整体控制系统（采用简单状态机）、基于强化学习算法 PPO 训练机器人抓取、完成系统集成，并负责最终测试与验证。
+
 ### Project summary
 (English)
 - Built a **ROS 2-based humanoid manipulation pipeline** integrating perception, locomotion, and grasp control in a modular multi-node architecture.
@@ -39,8 +44,6 @@ This is a team project repository for the cource Humanoid Robotics Systems offer
 - **LLM integration**: OpenAI API-based dialogue/instruction nodes convert natural language into structured robot tasks.
 - **Speech pipeline**: ASR uses `faster-whisper + webrtcvad + sounddevice`, and TTS uses `piper-tts` for closed-loop voice interaction.
 
-My contributions: Design of the overall control systems (simple state machine), train the grasping policy using reinforcement learning(PPO), system integration and final testing/validation.
-
 (Chinese)
 ### 项目技术栈
 
@@ -62,8 +65,6 @@ My contributions: Design of the overall control systems (simple state machine), 
 #### 4) 智能交互
 - **LLM 接入**：基于 OpenAI API 的对话/指令服务节点，解析自然语言为机器人结构化任务。
 - **语音链路**：ASR 使用 `faster-whisper + webrtcvad + sounddevice`，TTS 使用 `piper-tts`，实现语音输入输出闭环。
-
-我的主要贡献包括：设计整体控制系统（采用简单状态机）、基于强化学习算法 PPO 训练机器人抓取、完成系统集成，并负责最终测试与验证。
 
 ```bash
 workspace/
