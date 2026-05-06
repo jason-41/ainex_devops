@@ -95,7 +95,7 @@ workspace/
 
     python -m pip install "scipy==1.16.3"
 	pip install mediapipe piper-tts faster-whisper sounddevice soundfile webrtcvad "numpy<2"
-    pip install catkin_pkg empy lark pyyaml opencv-contrib-python==4.9.0.80
+    pip install catkin_pkg "empy==3.3.4" lark pyyaml opencv-contrib-python==4.9.0.80
     python -m pip install "numpy==1.26.4"
 
     # fallback, not neccessary
