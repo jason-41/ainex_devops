@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--
+  Top-level xacro for Gazebo Harmonic. Includes the original kinematic
+  chain (ainex.urdf.xacro) and our migrated Harmonic <gazebo> blocks.
+  Skips the classic gazebo.xacro entirely.
+
+  Build (after sourcing the colcon workspace so $(find ainex_description) works):
+    xacro ainex_gz.urdf.xacro > ainex_gz.urdf
+-->
+<robot name="ainex_gz" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find ainex_description)/urdf/ainex.urdf.xacro"/>
+  <!-- rl_grasp_gazebo is not a ROS package, so use a relative path -->
+  <xacro:include filename="gazebo_harmonic.xacro"/>
+
+  <!-- Pin base_link to world (mirrors PyBullet's useFixedBase=True used in
+       training). Without this the humanoid topples over since RL only
+       controls the right arm. -->
+  <link name="world"/>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child  link="base_link"/>
+    <origin xyz="0 0 0.30" rpy="0 0 0"/>
+  </joint>
+</robot>

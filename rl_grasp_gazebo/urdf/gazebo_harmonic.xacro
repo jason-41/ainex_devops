@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<!--
+  Harmonic-style replacements for the Classic <gazebo>/<plugin> blocks in
+  src/ainex/ainex_description/urdf/gazebo.xacro. We keep the friction settings
+  per-link (still works in Harmonic) and add the systems we need for RL:
+    * scene broadcaster + state publisher  (so we can read joint states)
+    * joint position controllers           (so we can send joint targets)
+  IMU and camera are dropped — RL uses kinematic state, not sensors.
+-->
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- =========================================================
+       World-level systems: attached to the robot model so they
+       come alive when the robot is spawned via ros_gz_sim.
+       ========================================================= -->
+  <gazebo>
+    <!-- publishes /world/<world>/model/ainex/joint_state -->
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+    </plugin>
+
+    <!-- one position controller per movable arm joint
+         (we drive only the right arm + right gripper for grasping) -->
+    <xacro:macro name="pos_ctrl" params="joint">
+      <plugin filename="gz-sim-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>${joint}</joint_name>
+        <topic>/ainex/${joint}/cmd_pos</topic>
+        <!-- Stiff enough to track step-changing IK targets like PyBullet's
+             constraint-based motor does. p ≈ 100 follows ~0.1rad steps in
+             a few physics ticks; d/p ≈ 0.15 keeps it critically-damped-ish. -->
+        <p_gain>100.0</p_gain>
+        <i_gain>0.0</i_gain>
+        <d_gain>15.0</d_gain>
+        <i_max>1.0</i_max>
+        <i_min>-1.0</i_min>
+        <cmd_max>8.0</cmd_max>
+        <cmd_min>-8.0</cmd_min>
+      </plugin>
+    </xacro:macro>
+
+    <!-- Only the joints RL actually drives. The other 22 joints are held in
+         place by their URDF static friction (0.2 N·m) — having dummy PID
+         controllers on them at target=0 causes severe stick-slip oscillation. -->
+    <xacro:pos_ctrl joint="r_sho_pitch"/>
+    <xacro:pos_ctrl joint="r_sho_roll"/>
+    <xacro:pos_ctrl joint="r_el_pitch"/>
+    <xacro:pos_ctrl joint="r_el_yaw"/>
+    <xacro:pos_ctrl joint="r_gripper"/>
+  </gazebo>
+
+  <!-- =========================================================
+       Per-link surface properties (migrated from Classic format).
+       Harmonic uses <self_collide> (snake_case) and <mu> inside
+       <surface><friction><ode>.
+       ========================================================= -->
+  <xacro:macro name="link_surface" params="link mu1:=0.2 mu2:=0.2">
+    <gazebo reference="${link}">
+      <self_collide>false</self_collide>
+      <mu1>${mu1}</mu1>
+      <mu2>${mu2}</mu2>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="foot_surface" params="link">
+    <gazebo reference="${link}">
+      <self_collide>false</self_collide>
+      <mu1>1.5</mu1>
+      <mu2>1.5</mu2>
+      <kp>1e5</kp>
+      <kd>1e2</kd>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:link_surface link="body_link"/>
+  <xacro:link_surface link="l_hip_yaw_link"/>
+  <xacro:link_surface link="l_hip_roll_link"/>
+  <xacro:link_surface link="l_hip_pitch_link"/>
+  <xacro:link_surface link="l_knee_link"/>
+  <xacro:link_surface link="l_ank_pitch_link"/>
+  <xacro:foot_surface link="l_ank_roll_link"/>
+  <xacro:link_surface link="r_hip_yaw_link"/>
+  <xacro:link_surface link="r_hip_roll_link"/>
+  <xacro:link_surface link="r_hip_pitch_link"/>
+  <xacro:link_surface link="r_knee_link"/>
+  <xacro:link_surface link="r_ank_pitch_link"/>
+  <xacro:foot_surface link="r_ank_roll_link"/>
+  <xacro:link_surface link="r_sho_pitch_link"/>
+  <xacro:link_surface link="r_sho_roll_link"/>
+  <xacro:link_surface link="r_el_pitch_link"/>
+  <xacro:link_surface link="r_el_yaw_link"/>
+  <xacro:link_surface link="r_gripper_link"/>
+  <xacro:link_surface link="l_sho_pitch_link"/>
+  <xacro:link_surface link="l_sho_roll_link"/>
+  <xacro:link_surface link="l_el_pitch_link"/>
+  <xacro:link_surface link="l_el_yaw_link"/>
+  <xacro:link_surface link="l_gripper_link"/>
+  <xacro:link_surface link="head_pan_link"/>
+  <xacro:link_surface link="head_tilt_link"/>
+</robot>
