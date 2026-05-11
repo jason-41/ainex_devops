@@ -14,14 +14,14 @@ Design of the overall control systems (simple state machine), train the grasping
 - Integrated **LLM + speech interface** (ASR/TTS) to translate natural language instructions into executable robot actions.
 - Implemented **Aruco-guided navigation and target-object localization** with OpenCV, enabling autonomous approach and pick-and-place behaviors.
 - Developed **kinematics-driven arm/hand control** with Pinocchio and trajectory interpolation for stable grasp/degrasp execution.
-- Developed a robotic grasping pipeline in Gazebo; leveraged the manufacturer-provided URDF and Pinocchio for robot kinematics/dynamics computation, and trained the policy with reinforcement learning (PPO).
+- Developed a robotic grasping pipeline in MuJoCo; leveraged the manufacturer-provided URDF and Pinocchio for robot kinematics/dynamics computation, and trained the policy with reinforcement learning (PPO).
 
 (Chinese)
 - 构建了基于 **ROS 2** 的人形机器人操作流水线，在模块化多节点架构中集成感知、移动与抓取控制。
 - 集成 **LLM + 语音接口**（ASR/TTS），将自然语言指令转换为可执行机器人动作。
 - 基于 OpenCV 实现 **Aruco 引导导航与目标定位**，支持机器人自主接近与抓取放置。
 - 基于 Pinocchio 与轨迹插值开发 **运动学驱动的手臂/手部控制**，实现稳定抓取与释放。
-- 使用 Gazebo 搭建机器人抓取仿真环境，基于厂家提供的 URDF，利用 Pinocchio 进行运动学/动力学计算，并采用强化学习的PPO算法训练抓取策略。
+- 使用 MuJoCo 搭建机器人抓取仿真环境，基于厂家提供的 URDF，利用 Pinocchio 进行运动学/动力学计算，并采用强化学习的PPO算法训练抓取策略。
 
 ### Tech stack
 (English)
