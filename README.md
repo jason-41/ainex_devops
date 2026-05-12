@@ -281,4 +281,3 @@ The replay script subscribes to `/world/grasp_world/model/ainex/joint_state` and
 | done  | —    | reach within 4 cm OR 200 timesteps |
 
 IK runs as a PyBullet sidecar on the same URDF — task-space deltas are converted to ainex right-arm joint targets, then handed to MuJoCo for physics integration.
-
