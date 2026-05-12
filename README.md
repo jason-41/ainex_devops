@@ -4,9 +4,14 @@ This is a team project repository for the cource Humanoid Robotics Systems offer
 <img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/68451164-dedd-4e9b-9ad3-4782b5561f56" />
 
 #### My contributions: 
-Design of the overall control systems (simple state machine), train the grasping policy using reinforcement learning(PPO), system integration and final testing/validation. 
-#### 我的主要贡献包括：
-设计整体控制系统（采用简单状态机）、基于强化学习算法 PPO 训练机器人抓取、完成系统集成，并负责最终测试与验证。
+- Designed the overall control architecture as a simple state machine on top of ROS 2.
+- **Trained the grasping policy with PPO in MuJoCo** (Gymnasium env on the manufacturer URDF, `stable-baselines3` + `SubprocVecEnv`), then deployed/visualized the same policy in **Gazebo Harmonic** through a `gz-transport` bridge.
+- System integration across perception / LLM / control nodes, plus final hardware testing & validation.
+
+#### 我的主要贡献：
+- 在 ROS 2 之上设计了基于状态机的整体控制架构。
+- **在 MuJoCo 中用 PPO 训练抓取策略**（Gymnasium env 直接吃厂家 URDF，`stable-baselines3` + `SubprocVecEnv` 多进程并行）；训好的策略再通过 `gz-transport` 桥接部署/可视化到 **Gazebo Harmonic**。
+- 完成感知 / LLM / 控制各节点的系统集成，以及最终的硬件测试与验证。
 
 ### Project summary
 (English)
@@ -14,14 +19,14 @@ Design of the overall control systems (simple state machine), train the grasping
 - Integrated **LLM + speech interface** (ASR/TTS) to translate natural language instructions into executable robot actions.
 - Implemented **Aruco-guided navigation and target-object localization** with OpenCV, enabling autonomous approach and pick-and-place behaviors.
 - Developed **kinematics-driven arm/hand control** with Pinocchio and trajectory interpolation for stable grasp/degrasp execution.
-- Developed a robotic grasping pipeline in MuJoCo; leveraged the manufacturer-provided URDF and Pinocchio for robot kinematics/dynamics computation, and trained the policy with reinforcement learning (PPO).
+- Built a grasp policy with **MuJoCo + Stable-Baselines3 PPO** on the manufacturer-provided URDF; the trained policy is then deployed/visualized in **Gazebo Harmonic** (`gz_sim` + `ros_gz_bridge`) for system-level integration testing within the ROS 2 stack.
 
 (Chinese)
 - 构建了基于 **ROS 2** 的人形机器人操作流水线，在模块化多节点架构中集成感知、移动与抓取控制。
 - 集成 **LLM + 语音接口**（ASR/TTS），将自然语言指令转换为可执行机器人动作。
 - 基于 OpenCV 实现 **Aruco 引导导航与目标定位**，支持机器人自主接近与抓取放置。
 - 基于 Pinocchio 与轨迹插值开发 **运动学驱动的手臂/手部控制**，实现稳定抓取与释放。
-- 使用 MuJoCo 搭建机器人抓取仿真环境，基于厂家提供的 URDF，利用 Pinocchio 进行运动学/动力学计算，并采用强化学习的PPO算法训练抓取策略。
+- 基于厂家 URDF 在 **MuJoCo + Stable-Baselines3 PPO** 中训练抓取策略；训完的策略再部署到 **Gazebo Harmonic**（`gz_sim` + `ros_gz_bridge`）做 ROS 2 集成测试与可视化验证。
 
 ### Tech stack
 (English)
@@ -44,6 +49,13 @@ Design of the overall control systems (simple state machine), train the grasping
 - **LLM integration**: OpenAI API-based dialogue/instruction nodes convert natural language into structured robot tasks.
 - **Speech pipeline**: ASR uses `faster-whisper + webrtcvad + sounddevice`, and TTS uses `piper-tts` for closed-loop voice interaction.
 
+#### 5) Reinforcement-Learning Grasp Policy
+- **Training simulator**: **MuJoCo 3.x** drives physics & contact during PPO rollouts; chosen over ROS-native simulators (Gazebo) because MuJoCo is the de-facto RL standard (used by OpenAI, DeepMind, Google) — fast, deterministic, headless, no IPC overhead.
+- **Algorithm**: **PPO** from `stable-baselines3 2.3` with `MlpPolicy` (64×64 hidden), 4 parallel envs via `SubprocVecEnv`, 1M timesteps, ~25 min on a single laptop GPU/CPU.
+- **MDP**: continuous task-space action `(Δx, Δy, Δz, gripper)`; observation is `(ee_xyz, cube_xyz, cube−ee, gripper_q)` (10D); reward is shaped reach: `−‖cube − ee‖ + close-by bonus + touch bonus`; episode ends on reach or 200-step timeout.
+- **IK**: PyBullet's damped-least-squares IK runs as a sidecar on the same URDF to convert task-space deltas into the ainex right-arm joint targets fed to MuJoCo.
+- **Deployment / visualization**: a separate replay script loads the trained `.zip` policy, subscribes to **Gazebo Harmonic** joint-state via `gz-transport`, computes the action, and publishes back to `/ainex/<joint>/cmd_pos` topics — closing the sim-to-sim loop into the ROS 2 stack.
+
 (Chinese)
 ### 项目技术栈
 
@@ -65,6 +77,13 @@ Design of the overall control systems (simple state machine), train the grasping
 #### 4) 智能交互
 - **LLM 接入**：基于 OpenAI API 的对话/指令服务节点，解析自然语言为机器人结构化任务。
 - **语音链路**：ASR 使用 `faster-whisper + webrtcvad + sounddevice`，TTS 使用 `piper-tts`，实现语音输入输出闭环。
+
+#### 5) 强化学习抓取策略
+- **训练仿真器**：**MuJoCo 3.x** 负责训练阶段的物理与接触仿真。选择 MuJoCo 而非 ROS 原生的 Gazebo，是因为 MuJoCo 是 RL 业界事实标准（OpenAI / DeepMind / Google 都用）——快、确定性强、无头运行、无 IPC 开销。
+- **算法**：`stable-baselines3 2.3` 的 **PPO**，`MlpPolicy`（隐层 64×64），`SubprocVecEnv` 4 路并行，1M timesteps，单机笔记本 GPU/CPU 约 25 min 训完。
+- **MDP**：连续任务空间动作 `(Δx, Δy, Δz, gripper)`；观测 `(ee_xyz, cube_xyz, cube−ee, gripper_q)`（10 维）；reward 走 reach shaping：`−‖cube − ee‖ + 接近 bonus + 触到 bonus`；触到或 200 步超时则终止。
+- **IK**：PyBullet 的 damped-least-squares IK 作为 sidecar，加载相同 URDF，把任务空间 delta 翻译成 ainex 右臂关节目标喂给 MuJoCo。
+- **部署 / 可视化**：训完的 `.zip` 策略由 replay 脚本加载，通过 `gz-transport` 订阅 **Gazebo Harmonic** 的 joint state，算 action 后再发布回 `/ainex/<joint>/cmd_pos`——完成 sim-to-sim 串接到 ROS 2 体系内。
 
 ```bash
 workspace/
@@ -95,7 +114,7 @@ workspace/
 
     python -m pip install "scipy==1.16.3"
 	pip install mediapipe piper-tts faster-whisper sounddevice soundfile webrtcvad "numpy<2"
-    pip install catkin_pkg empy lark pyyaml opencv-contrib-python==4.9.0.80
+    pip install catkin_pkg "empy==3.3.4" lark pyyaml opencv-contrib-python==4.9.0.80
     python -m pip install "numpy==1.26.4"
 
     # fallback, not neccessary
@@ -178,3 +197,87 @@ asr_node:adapt the microphone id to your own one, if needed
 
 3. (ainex_vision):
 face_detection_node:adapt the topic name to match your camera setup
+
+
+# Reinforcement-Learning Grasp Pipeline
+
+The PPO grasp policy is trained **outside** the ROS 2 workspace (in MuJoCo, no ROS dependency) and then **optionally** bridged into Gazebo for sim-to-sim integration testing. Two parallel folders:
+
+```
+rl_grasp/                       MuJoCo training + PyBullet sidecar IK + Gym envs
+├── envs/grasp_env_mujoco.py    main env (Gymnasium API)
+├── envs/grasp_env_ainex.py     legacy PyBullet env (kept for comparison)
+├── scripts/train_ppo.py        sb3 PPO training entrypoint
+├── scripts/eval_ppo.py         interactive eval (mujoco.viewer OR pybullet GUI)
+├── scripts/smoke_test.py       env sanity check
+└── urdf/                       MuJoCo-friendly URDF + compiled MJCF + scene
+
+rl_grasp_gazebo/                Gazebo Harmonic deployment of the trained policy
+├── urdf/                       Harmonic-style <gazebo> blocks (controllers, surfaces)
+├── worlds/grasp.sdf            ground / table / cube
+├── launch/spawn.launch.py      gz_sim + robot_state_publisher + ros_gz_bridge
+└── scripts/replay_pybullet_policy.py    loads the .zip and publishes joint cmds
+```
+
+## Setup (separate from groupE_venv)
+
+The RL stack runs in its own venv to avoid clashing with ROS 2 pins:
+
+```bash
+python3 -m venv ~/rl_venv
+source ~/rl_venv/bin/activate
+pip install "stable-baselines3==2.3.2" "gymnasium==0.29.1" "torch>=2.1" \
+    tensorboard pybullet mujoco
+```
+
+## Train (MuJoCo)
+
+```bash
+source ~/rl_venv/bin/activate
+cd rl_grasp
+python scripts/train_ppo.py --robot ainex_mujoco --total-steps 1000000
+# ~25 min on a laptop CPU; SubprocVecEnv with 4 parallel envs
+# checkpoints land in checkpoints/ainex_mujoco/ (gitignored)
+# TensorBoard logs in logs/ainex_mujoco/
+```
+
+Other `--robot` choices: `ainex` (PyBullet env, legacy), `franka` (gripper-capable Franka Panda demo).
+
+Monitor convergence:
+```bash
+tensorboard --logdir logs/ainex_mujoco
+```
+
+## Eval — option A: MuJoCo viewer (no ROS)
+
+```bash
+python scripts/eval_ppo.py --robot ainex_mujoco
+```
+Opens a native MuJoCo window; runs 10 deterministic episodes and prints success rate.
+
+## Eval — option B: Gazebo Harmonic (ROS 2 integration)
+
+```bash
+# terminal 1 — start Gazebo + spawn robot
+source /opt/ros/jazzy/setup.bash && source install/setup.bash
+export GZ_IP=127.0.0.1
+ros2 launch rl_grasp_gazebo/launch/spawn.launch.py
+
+# terminal 2 — replay the trained policy through gz-transport
+source ~/rl_venv/bin/activate
+export GZ_IP=127.0.0.1
+python rl_grasp_gazebo/scripts/replay_pybullet_policy.py
+```
+
+The replay script subscribes to `/world/grasp_world/model/ainex/joint_state` and `/world/grasp_world/dynamic_pose/info`, runs the policy + IK in-process, then publishes joint targets to `/ainex/<joint>/cmd_pos`.
+
+## MDP cheat sheet (matches both envs)
+
+| field | shape | meaning |
+|---|---|---|
+| obs   | (10,) | ee_xyz(3) + cube_xyz(3) + (cube − ee)(3) + gripper_q(1) |
+| action| (4,)  | (Δx, Δy, Δz, gripper) in [−1, 1], task-space |
+| reward| —    | `−‖cube − ee‖ + close-by bonus + touch bonus − λ·Σq² − μ·‖a‖` |
+| done  | —    | reach within 4 cm OR 200 timesteps |
+
+IK runs as a PyBullet sidecar on the same URDF — task-space deltas are converted to ainex right-arm joint targets, then handed to MuJoCo for physics integration.

@@ -1,0 +1,91 @@
+<?xml version="1.0" ?>
+<!--
+  Minimal world for ainex grasping in Gazebo Harmonic.
+  Contains: ground plane, sun, low platform (ainex's "table") and a small cube.
+  Robot itself is spawned separately by spawn.launch.py from URDF.
+-->
+<sdf version="1.10">
+  <world name="grasp_world">
+
+    <physics name="1ms" type="dart">
+      <max_step_size>0.002</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- DART (default) honors JointForceCmd correctly so JointPositionController
+         actually moves the joints. Mesh collision on the robot won't load, but
+         we don't need it: base is fixed, only cube/platform (boxes) collide. -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"  name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"        name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <light name="sun" type="directional">
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.5 0.5 0.5 1</specular>
+      <direction>0.5 0.5 -1</direction>
+      <cast_shadows>true</cast_shadows>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <material>
+            <ambient>0.6 0.6 0.6 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- low platform supporting the cube. Cube center (0.13,-0.17,0.33),
+         platform z = 0.33 - 0.015(cube half) - 0.04(platform half) = 0.275 -->
+    <model name="platform">
+      <static>true</static>
+      <pose>0.13 -0.17 0.275 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.16 0.16 0.08</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.16 0.16 0.08</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.20 1</ambient>
+            <diffuse>0.55 0.35 0.20 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- target cube -->
+    <model name="cube">
+      <pose>0.13 -0.17 0.33 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia><ixx>1e-5</ixx><iyy>1e-5</iyy><izz>1e-5</izz>
+                   <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.03 0.03 0.03</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.03 0.03 0.03</size></box></geometry>
+          <material>
+            <ambient>0.10 0.70 0.10 1</ambient>
+            <diffuse>0.10 0.70 0.10 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

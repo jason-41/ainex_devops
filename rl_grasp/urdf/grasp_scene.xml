@@ -1,0 +1,38 @@
+<mujoco model="ainex_grasp">
+  <!-- include the precompiled ainex MJCF (was URDF, mj_saveLastXML to MJCF once) -->
+  <include file="ainex_mujoco.xml"/>
+
+  <option timestep="0.002" iterations="50" solver="Newton"/>
+
+  <visual>
+    <global offwidth="640" offheight="480"/>
+    <headlight diffuse="0.6 0.6 0.6"/>
+  </visual>
+
+  <asset>
+    <material name="cube_mat"     rgba="0.10 0.70 0.10 1"/>
+    <material name="platform_mat" rgba="0.55 0.35 0.20 1"/>
+    <material name="ground_mat"   rgba="0.7 0.7 0.7 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 2" dir="0 0 -1" diffuse="1 1 1"/>
+
+    <!-- ground plane (visual only — fixed-base robot won't fall) -->
+    <geom name="ground" type="plane" size="2 2 0.05"
+          material="ground_mat" friction="1 0.005 0.0001"/>
+
+    <!-- static platform. cube center 0.27 → top 0.255 → platform z = 0.215 -->
+    <body name="platform" pos="0.13 -0.17 0.215">
+      <geom name="platform_geom" type="box" size="0.08 0.08 0.04"
+            material="platform_mat" friction="1 0.005 0.0001"/>
+    </body>
+
+    <!-- target cube (free joint = movable / graspable); env reset() overrides this pose -->
+    <body name="cube" pos="0.13 -0.17 0.27">
+      <freejoint name="cube_free"/>
+      <geom name="cube_geom" type="box" size="0.015 0.015 0.015"
+            mass="0.05" material="cube_mat" friction="1 0.005 0.0001"/>
+    </body>
+  </worldbody>
+</mujoco>

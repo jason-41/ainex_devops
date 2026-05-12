@@ -9,5 +9,13 @@
 
 /.vscode
 
+# RL training artifacts (run locally, not committed)
+__pycache__/
+*.pyc
+rl_grasp/checkpoints/
+rl_grasp/logs/
+rl_grasp_gazebo/scripts/__pycache__/
+rl_grasp_gazebo/launch/__pycache__/
+
 
 
