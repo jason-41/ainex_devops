@@ -1,6 +1,6 @@
 #  Project Description
 ### Project overview
-This is a team project repository for the course Humanoid Robotics Systems, offered in the winter semester of 2025 by Prof. Gordon Cheng at the Institute for Cognitive Systems, Technical University of Munich. The project uses the compact AiNex biped humanoid robot as its hardware platform and extends it for the course's final group project.  
+This is a team project repository for the course Humanoid Robotics Systems, offered in the winter semester of 2025 by Prof. Gordon Cheng at [Institute for Cognitive Systems](https://www.ce.cit.tum.de/ics/home/), Technical University of Munich. The project uses the compact AiNex biped humanoid robot as its hardware platform and extends it for the course's final group project.  
 <img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/68451164-dedd-4e9b-9ad3-4782b5561f56" />
 
 #### My contributions: 
