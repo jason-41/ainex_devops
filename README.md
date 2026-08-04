@@ -1,6 +1,6 @@
 #  Project Description
 ### Project overview
-This is a team project repository for the cource Humanoid Robotics Systems offered in winter semester of 2025 by Prof. Gordon Cheng of Institute for Cognitive Systems at Technical University of Munich. The project is based on an off‑the‑shelf robot model "AiNex Biped Humanoid Robot" and secondary development was conducted in order to achieve the course's final group project.  
+This is a team project repository for the course Humanoid Robotics Systems, offered in the winter semester of 2025 by Prof. Gordon Cheng at the Institute for Cognitive Systems, Technical University of Munich. The project uses the compact AiNex biped humanoid robot as its hardware platform and extends it for the course's final group project.  
 <img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/68451164-dedd-4e9b-9ad3-4782b5561f56" />
 
 #### My contributions: 
@@ -15,17 +15,17 @@ This is a team project repository for the cource Humanoid Robotics Systems offer
 
 ### Project summary
 (English)
-- Built a **ROS 2-based humanoid manipulation pipeline** integrating perception, locomotion, and grasp control in a modular multi-node architecture.
+- Built a **ROS 2-based vision-guided locomotion and manipulation pipeline** for the compact AiNex biped humanoid, integrating perception, locomotion, and grasp control in a modular multi-node architecture.
 - Integrated **LLM + speech interface** (ASR/TTS) to translate natural language instructions into executable robot actions.
-- Implemented **Aruco-guided navigation and target-object localization** with OpenCV, enabling autonomous approach and pick-and-place behaviors.
-- Developed **kinematics-driven arm/hand control** with Pinocchio and trajectory interpolation for stable grasp/degrasp execution.
+- Implemented **ArUco-guided navigation to labeled locations** with OpenCV. A separate color/shape-based vision pipeline estimated the grasp object pose for pick-and-place execution.
+- Used **Pinocchio for URDF kinematics, end-effector poses, and Jacobians**; generated cubic task-space position references separately and mapped desired Cartesian velocity to joint velocity with a NumPy DLS solve.
 - Built a grasp policy with **MuJoCo + Stable-Baselines3 PPO** on the manufacturer-provided URDF; the trained policy is then deployed/visualized in **Gazebo Harmonic** (`gz_sim` + `ros_gz_bridge`) for system-level integration testing within the ROS 2 stack.
 
 (Chinese)
-- 构建了基于 **ROS 2** 的人形机器人操作流水线，在模块化多节点架构中集成感知、移动与抓取控制。
+- 面向小型双足 AiNex 人形机器人构建基于 **ROS 2** 的视觉引导移动与操作流程，在模块化多节点架构中集成感知、移动与抓取控制。
 - 集成 **LLM + 语音接口**（ASR/TTS），将自然语言指令转换为可执行机器人动作。
-- 基于 OpenCV 实现 **Aruco 引导导航与目标定位**，支持机器人自主接近与抓取放置。
-- 基于 Pinocchio 与轨迹插值开发 **运动学驱动的手臂/手部控制**，实现稳定抓取与释放。
+- 基于 OpenCV 实现 **ArUco 位置标记检测与导航**；另以颜色/形状视觉链路估计抓取物体位姿，用于抓取放置。
+- 使用 **Pinocchio** 读取 URDF 并计算末端位姿与雅可比；任务空间参考轨迹由三次多项式单独生成，再通过笛卡尔 PD 和 NumPy DLS 求解将期望笛卡尔速度映射为关节速度。
 - 基于厂家 URDF 在 **MuJoCo + Stable-Baselines3 PPO** 中训练抓取策略；训完的策略再部署到 **Gazebo Harmonic**（`gz_sim` + `ros_gz_bridge`）做 ROS 2 集成测试与可视化验证。
 
 ### Tech stack
@@ -35,15 +35,15 @@ This is a team project repository for the cource Humanoid Robotics Systems offer
 - **Modular architecture**: Core modules include `teleop` (state-machine control), `vision` (perception), `ainex_controller` (kinematics/execution), `llm_interface` (LLM instruction parsing), and `speech_interface` (voice interaction).
 
 #### 2) Robot Control & Kinematics
-- **Python robot-control stack**: Multi-node coordination is implemented with `rclpy`.
-- **Kinematics & trajectory**: Uses **Pinocchio + NumPy + SciPy Rotation** for pose computation and end-effector trajectory handling.
-- **Execution pipeline**: Custom messages/services (`servo_service`) are used to drive joint and posture control.
-- The grasp controller is task-space driven: the desired end-effector trajectory is generated in Cartesian space, a PD law produces the desired Cartesian velocity, DLS inverse kinematics maps it to joint velocities, and these are integrated into joint position setpoints for the servo interface (Due to the nature of the robot, one can only send joint position commands to the robot by ROS2 communication).
+- **Python robot-control stack**: The main workflow is sequenced by a Python state machine using `rclpy` nodes, topics, and direct node invocation.
+- **Kinematics**: Uses **Pinocchio** to load the URDF and compute forward kinematics, end-effector poses/velocities, and frame Jacobians.
+- **Task-space trajectory and control**: A cubic polynomial generates position references. A Cartesian PD controller produces desired velocity, and a NumPy DLS solve maps it to joint velocity.
+- **Execution pipeline**: The controller integrates joint velocity into position setpoints and publishes custom ROS 2 messages on the `Set_Joint`, `Change_Joint`, and `Set_Posture` topics. Custom services query joint state/configuration; they do not execute trajectories.
 
 #### 3) Perception & Vision
 - **OpenCV + cv_bridge**: Handles image ingestion, preprocessing, and target recognition.
-- **Aruco detection & localization**: Uses `cv2.aruco` and TF-related processing for marker detection and pose publishing.
-- **Object detection & camera calibration**: Supports threshold/model-based detection and image undistortion workflows.
+- **ArUco navigation markers**: Uses `cv2.aruco` and calibrated camera geometry to detect labeled markers and publish `/aruco_pose` for approach navigation.
+- **Object detection & pose estimation**: A separate color/shape pipeline publishes `/detected_object_pose` for grasping; camera calibration and image-undistortion nodes support the estimate.
 
 #### 4) Intelligent Interaction
 - **LLM integration**: OpenAI API-based dialogue/instruction nodes convert natural language into structured robot tasks.
@@ -64,15 +64,15 @@ This is a team project repository for the cource Humanoid Robotics Systems offer
 - **模块化架构**：核心由 `teleop`（状态机控制）、`vision`（视觉检测）、`ainex_controller`（运动学与执行）、`llm_interface`（LLM 指令解析）、`speech_interface`（语音交互）组成。
 
 #### 2) 机器人控制与运动学
-- **Python 机器人控制栈**：使用 `rclpy` 编写多节点协同控制逻辑。
-- **运动学/轨迹**：使用 **Pinocchio + NumPy + SciPy Rotation** 进行位姿计算与末端执行轨迹处理。
-- **执行链路**：通过自定义消息/服务（`servo_service`）驱动关节与姿态控制。
-- 抓取控制器是任务空间驱动的：先在笛卡尔空间生成末端参考轨迹，通过 PD 得到末端期望速度，再经 DLS 逆运动学映射为关节速度，最后将其积分为关节位置设定值发送给伺服（由于机器人的限制，只能由电脑经ros2发送关节坐标信息给机器人）。
+- **Python 机器人控制栈**：主任务由 Python 状态机顺序组织，节点之间通过 `rclpy` 话题和直接调用协作。
+- **运动学**：使用 **Pinocchio** 读取 URDF，计算正运动学、末端位姿/速度与末端雅可比。
+- **任务空间轨迹与控制**：由三次多项式生成位置参考，通过笛卡尔 PD 得到期望速度，再以 NumPy 实现的 DLS 求解映射为关节速度。
+- **执行链路**：积分关节速度得到位置设定值，并通过自定义 ROS 2 消息发布到 `Set_Joint`、`Change_Joint` 和 `Set_Posture` 话题。自定义服务用于关节位置、限位、锁定及伺服状态查询，不负责轨迹执行。
 
 #### 3) 感知与视觉
 - **OpenCV + cv_bridge**：图像接入、预处理与目标识别。
-- **Aruco 检测与定位**：使用 `cv2.aruco` 与 TF 相关处理完成标记检测与位姿发布。
-- **目标检测与相机标定**：支持基于阈值/模型的目标识别与去畸变流程。
+- **ArUco 导航标记**：使用 `cv2.aruco` 与标定后的相机参数检测位置标记，并发布 `/aruco_pose` 供机器人接近目标区域。
+- **物体检测与位姿估计**：独立的颜色/形状视觉链路发布 `/detected_object_pose` 供抓取使用；相机标定和图像去畸变节点为位姿估计提供支持。
 
 #### 4) 智能交互
 - **LLM 接入**：基于 OpenAI API 的对话/指令服务节点，解析自然语言为机器人结构化任务。
